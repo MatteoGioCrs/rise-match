@@ -12,8 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from config import settings
 from database import Base
 from models import User, SwimmerProfile, Performance, University, RosterAthlete, ConferenceResult, Match
-
-COLLEGE_SCORECARD_API_KEY=iqOCkqTKGZnG3RTGkhwVEgHCDYXQceYLC2Xsybl8
+from sqlalchemy import select
 
 SAMPLE_UNIVERSITIES = [
     {
@@ -162,120 +161,87 @@ async def seed():
     SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with SessionLocal() as db:
-        # --- Universities ---
+        # --- Universities (idempotent: skip if scorecard_id already exists) ---
         uni_objs = []
         for u_data in SAMPLE_UNIVERSITIES:
-            uni = University(**u_data)
-            db.add(uni)
+            res = await db.execute(select(University).where(University.scorecard_id == u_data["scorecard_id"]))
+            uni = res.scalar_one_or_none()
+            if not uni:
+                uni = University(**u_data)
+                db.add(uni)
             uni_objs.append(uni)
         await db.flush()
 
-        # --- Roster + conf results for Drury ---
+        # --- Roster + conf results for Drury (idempotent) ---
         drury = uni_objs[0]
-        for athlete in DRURY_SENIORS:
-            db.add(RosterAthlete(
-                university_id=drury.id,
-                name=athlete["name"],
-                study_year=athlete["study_year"],
-                gender=athlete["gender"],
-                events=athlete["events"],
-                best_times=athlete["best_times"],
-                season="2024-2025",
-            ))
+        existing_roster = await db.execute(select(RosterAthlete).where(RosterAthlete.university_id == drury.id))
+        if not existing_roster.scalars().first():
+            for athlete in DRURY_SENIORS:
+                db.add(RosterAthlete(
+                    university_id=drury.id,
+                    name=athlete["name"],
+                    study_year=athlete["study_year"],
+                    gender=athlete["gender"],
+                    events=athlete["events"],
+                    best_times=athlete["best_times"],
+                    season="2024-2025",
+                ))
 
-        for cr in DRURY_CONF_RESULTS:
-            db.add(ConferenceResult(university_id=drury.id, **cr))
+        existing_conf = await db.execute(select(ConferenceResult).where(ConferenceResult.university_id == drury.id))
+        if not existing_conf.scalars().first():
+            for cr in DRURY_CONF_RESULTS:
+                db.add(ConferenceResult(university_id=drury.id, **cr))
 
-        # --- Swimmer ---
-        user = User(
-            email="lucas.mercier@example.com",
-            plan="match",
-            rgpd_consent=True,
-            parent_consent=True,
-            is_minor=True,
-        )
-        db.add(user)
+        # --- Swimmer (idempotent: skip if email already exists) ---
+        res_user = await db.execute(select(User).where(User.email == "lucas.mercier@example.com"))
+        user = res_user.scalar_one_or_none()
+        if not user:
+            user = User(
+                email="lucas.mercier@example.com",
+                plan="match",
+                rgpd_consent=True,
+                parent_consent=True,
+                is_minor=True,
+            )
+            db.add(user)
         await db.flush()
 
-        swimmer = SwimmerProfile(
-            user_id=user.id,
-            ffn_licence="0123456",
-            first_name="Lucas",
-            last_name="Mercier",
-            birth_date=date(2008, 3, 15),
-            club_name="Stade Français Natation",
-            height_cm=184,
-            weight_kg=74.0,
-            wingspan_cm=192,
-            bac_mention="B",
-            bac_year=2026,
-            toefl_score=92,
-            target_majors=["Business / Management", "Sport Science / Kinesiology"],
-            target_divisions=["D1", "D2"],
-        )
-        db.add(swimmer)
+        res_prof = await db.execute(select(SwimmerProfile).where(SwimmerProfile.user_id == user.id))
+        swimmer = res_prof.scalar_one_or_none()
+        if not swimmer:
+            swimmer = SwimmerProfile(
+                user_id=user.id,
+                ffn_licence="0123456",
+                first_name="Lucas",
+                last_name="Mercier",
+                birth_date=date(2008, 3, 15),
+                club_name="Stade Français Natation",
+                height_cm=184,
+                weight_kg=74.0,
+                wingspan_cm=192,
+                bac_mention="B",
+                bac_year=2026,
+                toefl_score=92,
+                target_majors=["Business / Management", "Sport Science / Kinesiology"],
+                target_divisions=["D1", "D2"],
+            )
+            db.add(swimmer)
         await db.flush()
 
-        # Performances: 100m + 200m breaststroke LCM
-        performances = [
-            Performance(
-                swimmer_id=swimmer.id,
-                event_code="100BR",
-                basin_type="LCM",
-                time_seconds=62.41,
-                time_raw="1:02.41",
-                date=date(2025, 3, 10),
-                meeting_name="Championnats Régionaux IDF",
-                fina_points=620,
-                is_pb=True,
-            ),
-            Performance(
-                swimmer_id=swimmer.id,
-                event_code="100BR",
-                basin_type="LCM",
-                time_seconds=63.80,
-                time_raw="1:03.80",
-                date=date(2024, 11, 20),
-                meeting_name="Meeting Open Vincennes",
-                fina_points=588,
-                is_pb=False,
-            ),
-            Performance(
-                swimmer_id=swimmer.id,
-                event_code="100BR",
-                basin_type="LCM",
-                time_seconds=65.10,
-                time_raw="1:05.10",
-                date=date(2024, 3, 5),
-                meeting_name="Championnats Régionaux IDF",
-                fina_points=558,
-                is_pb=False,
-            ),
-            Performance(
-                swimmer_id=swimmer.id,
-                event_code="200BR",
-                basin_type="LCM",
-                time_seconds=136.03,
-                time_raw="2:16.03",
-                date=date(2025, 3, 10),
-                meeting_name="Championnats Régionaux IDF",
-                fina_points=598,
-                is_pb=True,
-            ),
-            Performance(
-                swimmer_id=swimmer.id,
-                event_code="200BR",
-                basin_type="LCM",
-                time_seconds=138.50,
-                time_raw="2:18.50",
-                date=date(2024, 11, 20),
-                meeting_name="Meeting Open Vincennes",
-                fina_points=571,
-                is_pb=False,
-            ),
-        ]
-        for p in performances:
-            db.add(p)
+        # Performances (idempotent: skip if already seeded)
+        existing_perfs = await db.execute(select(Performance).where(Performance.swimmer_id == swimmer.id))
+        if existing_perfs.scalars().first():
+            print("Performances already seeded — skipping.")
+        else:
+            performances = [
+                Performance(swimmer_id=swimmer.id, event_code="100BR", basin_type="LCM", time_seconds=62.41, time_raw="1:02.41", date=date(2025, 3, 10), meeting_name="Championnats Régionaux IDF", fina_points=620, is_pb=True),
+                Performance(swimmer_id=swimmer.id, event_code="100BR", basin_type="LCM", time_seconds=63.80, time_raw="1:03.80", date=date(2024, 11, 20), meeting_name="Meeting Open Vincennes", fina_points=588, is_pb=False),
+                Performance(swimmer_id=swimmer.id, event_code="100BR", basin_type="LCM", time_seconds=65.10, time_raw="1:05.10", date=date(2024, 3, 5), meeting_name="Championnats Régionaux IDF", fina_points=558, is_pb=False),
+                Performance(swimmer_id=swimmer.id, event_code="200BR", basin_type="LCM", time_seconds=136.03, time_raw="2:16.03", date=date(2025, 3, 10), meeting_name="Championnats Régionaux IDF", fina_points=598, is_pb=True),
+                Performance(swimmer_id=swimmer.id, event_code="200BR", basin_type="LCM", time_seconds=138.50, time_raw="2:18.50", date=date(2024, 11, 20), meeting_name="Meeting Open Vincennes", fina_points=571, is_pb=False),
+            ]
+            for p in performances:
+                db.add(p)
 
         await db.flush()
 

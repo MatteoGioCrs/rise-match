@@ -3,19 +3,24 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { saveAuth } from "@/lib/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
     email: "",
     password: "",
+    confirm_password: "",
     ffn_licence: "",
     birth_date: "",
     // Step 2
@@ -53,31 +58,52 @@ export default function RegisterPage() {
     }));
   }
 
+  function validateStep1(): string {
+    if (!form.first_name.trim()) return "Le prénom est requis";
+    if (!form.last_name.trim()) return "Le nom est requis";
+    if (!form.email.trim()) return "L'email est requis";
+    if (!form.password) return "Le mot de passe est requis";
+    if (form.password.length < 8) return "Le mot de passe doit faire au moins 8 caractères";
+    if (form.password !== form.confirm_password) return "Les mots de passe ne correspondent pas";
+    if (!form.birth_date) return "La date de naissance est requise";
+    return "";
+  }
+
+  function handleNext() {
+    if (step === 1) {
+      const err = validateStep1();
+      if (err) { setError(err); return; }
+    }
+    setError("");
+    setStep((s) => s + 1);
+  }
+
   async function handleFinish() {
     setLoading(true);
     setError("");
     try {
-      const payload = {
+      const result = await api.register({
         first_name: form.first_name,
         last_name: form.last_name,
         email: form.email,
+        password: form.password,
         ffn_licence: form.ffn_licence || undefined,
         birth_date: form.birth_date || undefined,
         height_cm: form.height_cm ? parseInt(form.height_cm) : undefined,
         weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : undefined,
         wingspan_cm: form.wingspan_cm ? parseInt(form.wingspan_cm) : undefined,
         bac_mention: form.bac_mention || undefined,
-        target_majors: form.target_majors ? form.target_majors.split(",").map((s) => s.trim()) : undefined,
+        target_majors: form.target_majors
+          ? form.target_majors.split(",").map((s) => s.trim()).filter(Boolean)
+          : undefined,
         toefl_score: form.toefl_score ? parseInt(form.toefl_score) : undefined,
         sat_score: form.sat_score ? parseInt(form.sat_score) : undefined,
         target_divisions: form.target_divisions,
         rgpd_consent: form.rgpd_consent,
         parent_consent: isMinor ? form.parent_consent : true,
-      };
+      });
 
-      const result = await api.updateProfile(payload);
-      localStorage.setItem("swimmer_id", result.id);
-      localStorage.setItem("token", "demo-token");
+      saveAuth(result.token, result.swimmer_id, result.plan);
       router.push("/dashboard");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erreur lors de l'inscription");
@@ -165,6 +191,75 @@ export default function RegisterPage() {
             <div>
               <label style={labelStyle}>Email</label>
               <input type="email" style={inputStyle} value={form.email} onChange={(e) => update("email", e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Mot de passe (min. 8 caractères)</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  style={{ ...inputStyle, paddingRight: "2.75rem" }}
+                  value={form.password}
+                  onChange={(e) => update("password", e.target.value)}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  style={{
+                    position: "absolute",
+                    right: "0.75rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--text-secondary)",
+                    padding: 0,
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Confirmer le mot de passe</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  style={{
+                    ...inputStyle,
+                    paddingRight: "2.75rem",
+                    border: form.confirm_password && form.password !== form.confirm_password
+                      ? "1px solid var(--red)"
+                      : "1px solid var(--border)",
+                  }}
+                  value={form.confirm_password}
+                  onChange={(e) => update("confirm_password", e.target.value)}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  style={{
+                    position: "absolute",
+                    right: "0.75rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--text-secondary)",
+                    padding: 0,
+                  }}
+                >
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {form.confirm_password && form.password !== form.confirm_password && (
+                <p style={{ color: "var(--red)", fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                  Les mots de passe ne correspondent pas
+                </p>
+              )}
             </div>
             <div>
               <label style={labelStyle}>Date de naissance</label>
@@ -340,7 +435,7 @@ export default function RegisterPage() {
           {step < 4 ? (
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
+              onClick={handleNext}
               style={{
                 flex: 2,
                 background: "var(--red)",
@@ -368,6 +463,7 @@ export default function RegisterPage() {
                 borderRadius: "8px",
                 cursor: loading ? "wait" : "pointer",
                 fontWeight: 600,
+                opacity: loading ? 0.7 : 1,
               }}
             >
               {loading ? "Création..." : "Calculer mes matchs"}

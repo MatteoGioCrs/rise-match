@@ -1,17 +1,67 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, User, TrendingUp, LogOut } from "lucide-react";
+import { api } from "@/lib/api-client";
+import { clearAuth } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-  { href: "/profile", label: "Profil", icon: <User size={18} /> },
+  { href: "/profile", label: "Mon profil", icon: <User size={18} /> },
   { href: "/progress", label: "Progression", icon: <TrendingUp size={18} /> },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [authReady, setAuthReady] = useState(false);
+
+  // On mount: validate token and hydrate localStorage if needed
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    // Validate token against /api/auth/me and hydrate swimmer_id / plan
+    api.me()
+      .then((user) => {
+        localStorage.setItem("swimmer_id", user.swimmer_id);
+        localStorage.setItem("plan", user.plan);
+        setAuthReady(true);
+      })
+      .catch(() => {
+        // Token invalid or expired — clear and redirect
+        clearAuth();
+        router.replace("/login");
+      });
+  }, []); // eslint-disable-line
+
+  function handleLogout() {
+    clearAuth();
+    window.location.href = "/";
+  }
+
+  if (!authReady) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "var(--navy)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--text-secondary)",
+          fontSize: "0.875rem",
+        }}
+      >
+        Chargement...
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--navy)" }}>
@@ -62,10 +112,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div style={{ padding: "0 0.75rem" }}>
           <button
-            onClick={() => {
-              localStorage.removeItem("token");
-              window.location.href = "/";
-            }}
+            onClick={handleLogout}
             style={{
               display: "flex",
               alignItems: "center",

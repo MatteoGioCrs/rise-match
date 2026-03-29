@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastProvider } from "@/components/Toast";
 
 export const metadata: Metadata = {
   title: "RISE.MATCH — Trouve les universités qui ont besoin de toi",
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body style={{ backgroundColor: "var(--navy)", color: "var(--text-primary)" }}>
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

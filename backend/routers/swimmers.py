@@ -50,6 +50,8 @@ class ProfileResponse(BaseModel):
     weight_kg: Optional[float]
     wingspan_cm: Optional[int]
     bac_mention: Optional[str]
+    toefl_score: Optional[int]
+    sat_score: Optional[int]
     target_majors: Optional[list[str]]
     target_divisions: Optional[list[str]]
     is_minor: bool
@@ -168,6 +170,8 @@ async def create_or_update_profile(
         weight_kg=float(profile.weight_kg) if profile.weight_kg else None,
         wingspan_cm=profile.wingspan_cm,
         bac_mention=profile.bac_mention,
+        toefl_score=profile.toefl_score,
+        sat_score=profile.sat_score,
         target_majors=profile.target_majors,
         target_divisions=profile.target_divisions,
         is_minor=is_minor,
@@ -198,6 +202,60 @@ async def sync_ffn(
     return {"job_id": job_id, "status": "queued", "licence": profile.ffn_licence}
 
 
+class ProfilePatch(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    ffn_licence: Optional[str] = None
+    birth_date: Optional[date] = None
+    club_name: Optional[str] = None
+    height_cm: Optional[int] = None
+    weight_kg: Optional[float] = None
+    wingspan_cm: Optional[int] = None
+    bac_mention: Optional[str] = None
+    bac_year: Optional[int] = None
+    toefl_score: Optional[int] = None
+    sat_score: Optional[int] = None
+    target_majors: Optional[list[str]] = None
+    target_divisions: Optional[list[str]] = None
+    phone: Optional[str] = None
+
+
+@router.patch("/profile/{swimmer_id}", response_model=ProfileResponse)
+async def patch_profile(
+    swimmer_id: str,
+    payload: ProfilePatch,
+    db: AsyncSession = Depends(get_db),
+):
+    """Partial update: only provided fields are updated."""
+    profile = await db.get(SwimmerProfile, uuid.UUID(swimmer_id))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Nageur introuvable")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(profile, field, value)
+
+    await db.flush()
+
+    return ProfileResponse(
+        id=str(profile.id),
+        first_name=profile.first_name,
+        last_name=profile.last_name,
+        ffn_licence=profile.ffn_licence,
+        birth_date=profile.birth_date,
+        club_name=profile.club_name,
+        height_cm=profile.height_cm,
+        weight_kg=float(profile.weight_kg) if profile.weight_kg else None,
+        wingspan_cm=profile.wingspan_cm,
+        bac_mention=profile.bac_mention,
+        toefl_score=profile.toefl_score,
+        sat_score=profile.sat_score,
+        target_majors=profile.target_majors,
+        target_divisions=profile.target_divisions,
+        is_minor=_is_minor(profile.birth_date),
+    )
+
+
 @router.get("/profile/{swimmer_id}", response_model=ProfileResponse)
 async def get_profile(swimmer_id: str, db: AsyncSession = Depends(get_db)):
     profile = await db.get(SwimmerProfile, uuid.UUID(swimmer_id))
@@ -215,6 +273,8 @@ async def get_profile(swimmer_id: str, db: AsyncSession = Depends(get_db)):
         weight_kg=float(profile.weight_kg) if profile.weight_kg else None,
         wingspan_cm=profile.wingspan_cm,
         bac_mention=profile.bac_mention,
+        toefl_score=profile.toefl_score,
+        sat_score=profile.sat_score,
         target_majors=profile.target_majors,
         target_divisions=profile.target_divisions,
         is_minor=_is_minor(profile.birth_date),

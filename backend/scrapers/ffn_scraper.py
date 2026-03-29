@@ -103,6 +103,7 @@ async def search_swimmer(nom: str, prenom: str) -> list[dict]:
         )
         resp.raise_for_status()
 
+    resp.encoding = "iso-8859-1"
     soup = BeautifulSoup(resp.text, "html.parser")
     results = []
 
@@ -137,15 +138,34 @@ async def fetch_swimmer_perfs(licence_id: str) -> list[Performance]:
 
     await asyncio.sleep(REQUEST_DELAY)
 
-    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=30) as client:
-        resp = await client.get(url, params=params)
-        resp.raise_for_status()
+    try:
+        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=30) as client:
+            resp = await client.get(url, params=params)
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        print(f"FFN HTTP error for licence {licence_id}: {e}")
+        return []
+    except Exception as e:
+        print(f"FFN request failed for licence {licence_id}: {e}")
+        return []
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    # FFN Extranat returns HTML encoded in iso-8859-1
+    resp.encoding = "iso-8859-1"
+    html = resp.text
+
+    # Log a snippet in dev for debugging
+    print(f"[FFN] licence={licence_id} html_length={len(html)} snippet={html[:500]!r}")
+
+    soup = BeautifulSoup(html, "html.parser")
     performances: list[Performance] = []
 
     # Parse performance tables — FFN groups by event
-    for table in soup.select("table.tableau, table.resultats, table"):
+    # Try specific classes first, fall back to any table
+    tables = soup.find_all("table", {"class": lambda x: x and ("tableau" in x or "resultats" in x)})
+    if not tables:
+        tables = soup.find_all("table")
+
+    for table in tables:
         rows = table.find_all("tr")
         current_event = None
         current_basin = "LCM"

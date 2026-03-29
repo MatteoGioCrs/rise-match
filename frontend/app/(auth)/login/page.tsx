@@ -3,23 +3,28 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api-client";
+import { saveAuth } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    // TODO: replace with real JWT auth
-    if (email && password) {
-      localStorage.setItem("token", "demo-token");
-      localStorage.setItem("swimmer_id", "demo-swimmer-id");
+    setLoading(true);
+    try {
+      const result = await api.login({ email, password });
+      saveAuth(result.token, result.swimmer_id, result.plan);
       router.push("/dashboard");
-    } else {
-      setError("Email et mot de passe requis.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Email ou mot de passe incorrect");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -103,6 +108,7 @@ export default function LoginPage() {
           )}
           <button
             type="submit"
+            disabled={loading}
             style={{
               background: "var(--red)",
               color: "#fff",
@@ -110,11 +116,12 @@ export default function LoginPage() {
               borderRadius: "8px",
               padding: "0.875rem",
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: loading ? "wait" : "pointer",
               marginTop: "0.5rem",
+              opacity: loading ? 0.7 : 1,
             }}
           >
-            Se connecter
+            {loading ? "Connexion..." : "Se connecter"}
           </button>
         </form>
 

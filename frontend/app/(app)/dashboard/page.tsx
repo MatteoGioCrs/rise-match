@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api, MatchSummary } from "@/lib/api-client";
 import MatchCard from "@/components/MatchCard";
 
-const DIVISIONS = ["Tous", "D1", "D2", "D3", "NAIA", "USports", "ACAC"];
+const ALL_DIVISIONS = ["D1", "D2", "D3", "NAIA", "USports", "ACAC"];
 const SORT_OPTIONS = [
   { value: "fit_score", label: "Fit" },
   { value: "scholarship", label: "Bourse" },
@@ -15,7 +15,8 @@ const SORT_OPTIONS = [
 export default function DashboardPage() {
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeDiv, setActiveDiv] = useState("Tous");
+  // activeDivs: empty array = "Tous" (show all)
+  const [activeDivs, setActiveDivs] = useState<string[]>([]);
   const [sort, setSort] = useState("fit_score");
 
   useEffect(() => {
@@ -29,15 +30,29 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [sort]);
 
-  const filtered = activeDiv === "Tous"
-    ? matches
-    : matches.filter((m) => m.division === activeDiv);
+  function toggleDiv(div: string) {
+    setActiveDivs((prev) =>
+      prev.includes(div) ? prev.filter((d) => d !== div) : [...prev, div]
+    );
+  }
+
+  function selectAll() {
+    setActiveDivs([]);
+  }
+
+  const filtered =
+    activeDivs.length === 0
+      ? matches
+      : matches.filter((m) => m.division && activeDivs.includes(m.division));
 
   // Metrics
   const totalMatches = matches.length;
   const avgScholarship =
     matches.length > 0
-      ? Math.round(matches.slice(0, 5).reduce((s, m) => s + (m.scholarship_est || 0), 0) / Math.min(5, matches.length))
+      ? Math.round(
+          matches.slice(0, 5).reduce((s, m) => s + (m.scholarship_est || 0), 0) /
+            Math.min(5, matches.length)
+        )
       : 0;
 
   return (
@@ -86,19 +101,36 @@ export default function DashboardPage() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", gap: "0.375rem" }}>
-          {DIVISIONS.map((div) => (
+        <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
+          {/* "Tous" chip */}
+          <button
+            onClick={selectAll}
+            style={{
+              padding: "0.375rem 0.875rem",
+              borderRadius: "999px",
+              border: "1px solid var(--border)",
+              background: activeDivs.length === 0 ? "var(--red)" : "transparent",
+              color: "#fff",
+              fontSize: "0.8rem",
+              cursor: "pointer",
+              fontWeight: activeDivs.length === 0 ? 600 : 400,
+            }}
+          >
+            Tous
+          </button>
+          {ALL_DIVISIONS.map((div) => (
             <button
               key={div}
-              onClick={() => setActiveDiv(div)}
+              onClick={() => toggleDiv(div)}
               style={{
                 padding: "0.375rem 0.875rem",
                 borderRadius: "999px",
                 border: "1px solid var(--border)",
-                background: activeDiv === div ? "var(--red)" : "transparent",
+                background: activeDivs.includes(div) ? "var(--red)" : "transparent",
                 color: "#fff",
                 fontSize: "0.8rem",
                 cursor: "pointer",
+                fontWeight: activeDivs.includes(div) ? 600 : 400,
               }}
             >
               {div}

@@ -64,9 +64,20 @@ export interface SwimmerProfile {
   weight_kg: number | null;
   wingspan_cm: number | null;
   bac_mention: string | null;
+  toefl_score: number | null;
+  sat_score: number | null;
   target_majors: string[] | null;
   target_divisions: string[] | null;
   is_minor: boolean;
+}
+
+export interface AuthResponse {
+  token: string;
+  swimmer_id: string;
+  email: string;
+  plan: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface GenerateEmailResponse {
@@ -88,6 +99,26 @@ export interface SendEmailPayload {
 // ---- API Methods ----
 
 export const api = {
+  // Auth
+  async register(data: Record<string, unknown>): Promise<AuthResponse> {
+    return request<AuthResponse>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async login(data: { email: string; password: string }): Promise<AuthResponse> {
+    return request<AuthResponse>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async me(): Promise<{ swimmer_id: string; email: string; plan: string; first_name: string; last_name: string; ffn_licence: string | null; is_minor: boolean }> {
+    return request("/api/auth/me");
+  },
+
+  // Matches
   async getMatches(
     swimmerId: string,
     opts: { sort?: string; plan?: string } = {}
@@ -110,6 +141,7 @@ export const api = {
     );
   },
 
+  // Profile
   async getProfile(swimmerId: string): Promise<SwimmerProfile> {
     return request<SwimmerProfile>(`/api/swimmer/profile/${swimmerId}`);
   },
@@ -121,6 +153,13 @@ export const api = {
     });
   },
 
+  async patchProfile(swimmerId: string, data: Record<string, unknown>): Promise<SwimmerProfile> {
+    return request<SwimmerProfile>(`/api/swimmer/profile/${swimmerId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
   async syncFFN(swimmerId: string): Promise<{ job_id: string; status: string }> {
     return request<{ job_id: string; status: string }>(
       `/api/swimmer/sync-ffn?swimmer_id=${swimmerId}`,
@@ -128,6 +167,7 @@ export const api = {
     );
   },
 
+  // Emails
   async generateEmail(swimmerId: string, universityId: number): Promise<GenerateEmailResponse> {
     return request<GenerateEmailResponse>("/api/emails/generate", {
       method: "POST",
@@ -142,6 +182,7 @@ export const api = {
     });
   },
 
+  // Universities
   async searchUniversities(filters: {
     division?: string;
     conference?: string;

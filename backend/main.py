@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from database import init_db, close_db
-from routers import swimmers, universities, matches, emails
+from routers import swimmers, universities, matches, emails, auth
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(swimmers.router)
 app.include_router(universities.router)
 app.include_router(matches.router)

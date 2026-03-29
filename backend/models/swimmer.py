@@ -16,6 +16,7 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(Text, unique=True, nullable=False)
+    password_hash = Column(Text, nullable=True)  # bcrypt hash; nullable for legacy rows
     plan = Column(Text, default="free")  # 'free', 'match', 'accompanied'
     stripe_customer = Column(Text)
     rgpd_consent = Column(Boolean, default=False)
