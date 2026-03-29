@@ -1,7 +1,7 @@
 from sqlalchemy import (
-    Column, Integer, Numeric, Text, BigInteger, ForeignKey, ARRAY, Boolean
+    Column, Integer, Numeric, Text, BigInteger, ForeignKey, ARRAY, Boolean, TIMESTAMP
 )
-from sqlalchemy.dialects.postgresql import UUID, TIMESTAMPTZ, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -24,7 +24,7 @@ class Match(Base):
     scholarship_est = Column(Numeric(5, 2))
     vacancy_detail = Column(JSONB)
     relay_detail = Column(JSONB)
-    computed_at = Column(TIMESTAMPTZ, server_default=func.now())
+    computed_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     swimmer = relationship("SwimmerProfile", back_populates="matches")
     university = relationship("University", back_populates="matches")
@@ -43,7 +43,7 @@ class EmailLog(Base):
     recipient_emails = Column(ARRAY(Text))
     subject = Column(Text)
     body_html = Column(Text)
-    sent_at = Column(TIMESTAMPTZ, server_default=func.now())
+    sent_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     resend_id = Column(Text)
     opened = Column(Boolean, default=False)
     replied = Column(Boolean, default=False)
