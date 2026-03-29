@@ -48,7 +48,7 @@ class SwimmerProfile(Base):
     target_divisions = Column(ARRAY(Text))  # ['D1', 'D2', 'NAIA', 'USports', 'ACAC']
     swimcloud_id = Column(Text)
     phone = Column(Text)
-    updated_at = Column(TIMESTAMPTZ, server_default=func.now(), onupdate=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="profile")
     performances = relationship("Performance", back_populates="swimmer", cascade="all, delete-orphan")
@@ -68,6 +68,6 @@ class Performance(Base):
     meeting_name = Column(Text)
     fina_points = Column(Integer)
     is_pb = Column(Boolean, default=False)
-    scraped_at = Column(TIMESTAMPTZ, server_default=func.now())
+    scraped_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     swimmer = relationship("SwimmerProfile", back_populates="performances")
