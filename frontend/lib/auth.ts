@@ -5,17 +5,17 @@
 
 export function saveAuth(token: string, swimmerId: string, plan: string) {
   if (typeof window === "undefined") return;
-  localStorage.setItem("token", token);
-  localStorage.setItem("swimmer_id", swimmerId);
-  localStorage.setItem("plan", plan);
+  localStorage.setItem("rise_token", token);
+  localStorage.setItem("rise_swimmer_id", swimmerId);
+  localStorage.setItem("rise_plan", plan);
   // Cookie for middleware (session-scoped, readable server-side)
-  document.cookie = `token=${token}; path=/; SameSite=Lax`;
+  document.cookie = `rise_token=${token}; path=/; SameSite=Lax`;
 }
 
 export function clearAuth() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem("token");
-  localStorage.removeItem("swimmer_id");
-  localStorage.removeItem("plan");
-  document.cookie = "token=; path=/; max-age=0";
+  localStorage.removeItem("rise_token");
+  localStorage.removeItem("rise_swimmer_id");
+  localStorage.removeItem("rise_plan");
+  document.cookie = "rise_token=; path=/; max-age=0";
 }

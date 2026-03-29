@@ -2,7 +2,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+  return localStorage.getItem("rise_token");
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -130,7 +130,7 @@ export const api = {
   },
 
   async getMatchDetail(swimmerId: string, universityId: number): Promise<MatchDetail> {
-    const plan = localStorage.getItem("plan") || "match";
+    const plan = localStorage.getItem("rise_plan") || "match";
     return request<MatchDetail>(`/api/matches/${swimmerId}/${universityId}?plan=${plan}`);
   },
 

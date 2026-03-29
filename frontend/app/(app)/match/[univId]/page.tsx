@@ -21,7 +21,7 @@ export default function MatchDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const swimmerId = localStorage.getItem("swimmer_id") || "demo";
+    const swimmerId = localStorage.getItem("rise_swimmer_id") || "demo";
     api
       .getMatchDetail(swimmerId, parseInt(univId))
       .then(setMatch)
@@ -282,7 +282,7 @@ export default function MatchDetailPage() {
 
           {/* Email generator */}
           <EmailGenerator
-            swimmerId={localStorage.getItem("swimmer_id") || ""}
+            swimmerId={localStorage.getItem("rise_swimmer_id") || ""}
             universityId={parseInt(univId)}
             universityName={match.university_name}
             coachEmail={match.coach_head_email}

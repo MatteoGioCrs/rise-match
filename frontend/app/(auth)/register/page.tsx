@@ -436,6 +436,12 @@ export default function RegisterPage() {
             <button
               type="button"
               onClick={handleNext}
+              disabled={
+                step === 1 && (
+                  form.password.length < 8 ||
+                  form.password !== form.confirm_password
+                )
+              }
               style={{
                 flex: 2,
                 background: "var(--red)",
@@ -443,8 +449,9 @@ export default function RegisterPage() {
                 color: "#fff",
                 padding: "0.875rem",
                 borderRadius: "8px",
-                cursor: "pointer",
+                cursor: step === 1 && (form.password.length < 8 || form.password !== form.confirm_password) ? "not-allowed" : "pointer",
                 fontWeight: 600,
+                opacity: step === 1 && (form.password.length < 8 || form.password !== form.confirm_password) ? 0.5 : 1,
               }}
             >
               Suivant

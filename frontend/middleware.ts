@@ -14,7 +14,7 @@ export function middleware(request: NextRequest) {
   if (!isProtected) return NextResponse.next();
 
   // Read token from cookie (set at login) or check if it's a public path
-  const token = request.cookies.get("token")?.value;
+  const token = request.cookies.get("rise_token")?.value;
 
   if (!token) {
     const loginUrl = new URL("/login", request.url);

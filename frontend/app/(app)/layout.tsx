@@ -20,7 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // On mount: validate token and hydrate localStorage if needed
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("rise_token");
     if (!token) {
       router.replace("/login");
       return;
@@ -29,8 +29,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // Validate token against /api/auth/me and hydrate swimmer_id / plan
     api.me()
       .then((user) => {
-        localStorage.setItem("swimmer_id", user.swimmer_id);
-        localStorage.setItem("plan", user.plan);
+        localStorage.setItem("rise_swimmer_id", user.swimmer_id);
+        localStorage.setItem("rise_plan", user.plan);
         setAuthReady(true);
       })
       .catch(() => {

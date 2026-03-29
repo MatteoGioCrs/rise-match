@@ -31,7 +31,7 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    const swimmerId = localStorage.getItem("swimmer_id");
+    const swimmerId = localStorage.getItem("rise_swimmer_id");
     if (swimmerId) {
       api
         .getProfile(swimmerId)
@@ -85,7 +85,7 @@ export default function ProfilePage() {
   }
 
   async function handleSave() {
-    const swimmerId = localStorage.getItem("swimmer_id");
+    const swimmerId = localStorage.getItem("rise_swimmer_id");
     if (!swimmerId) return;
     setSaving(true);
     try {
@@ -113,7 +113,7 @@ export default function ProfilePage() {
   }
 
   async function handleSyncFFN() {
-    const swimmerId = localStorage.getItem("swimmer_id");
+    const swimmerId = localStorage.getItem("rise_swimmer_id");
     if (!swimmerId) return;
     setSyncing(true);
     try {

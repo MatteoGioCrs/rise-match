@@ -20,8 +20,8 @@ export default function DashboardPage() {
   const [sort, setSort] = useState("fit_score");
 
   useEffect(() => {
-    const swimmerId = localStorage.getItem("swimmer_id") || "demo";
-    const plan = localStorage.getItem("plan") || "free";
+    const swimmerId = localStorage.getItem("rise_swimmer_id") || "demo";
+    const plan = localStorage.getItem("rise_plan") || "free";
 
     api
       .getMatches(swimmerId, { sort, plan })
