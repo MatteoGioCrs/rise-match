@@ -21,8 +21,8 @@ class User(Base):
     rgpd_consent = Column(Boolean, default=False)
     parent_consent = Column(Boolean, default=False)
     is_minor = Column(Boolean, default=False)
-    created_at = Column(TIMESTAMPTZ, server_default=func.now())
-    deleted_at = Column(TIMESTAMPTZ)  # soft delete for GDPR
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)  # soft delete for GDPR
 
     profile = relationship("SwimmerProfile", back_populates="user", uselist=False)
 
