@@ -1,8 +1,8 @@
 from sqlalchemy import (
     Column, String, Boolean, Integer, Numeric, Text,
-    ForeignKey, ARRAY, BigInteger
+    ForeignKey, ARRAY, BigInteger, TIMESTAMP
 )
-from sqlalchemy.dialects.postgresql import TIMESTAMPTZ, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -30,8 +30,8 @@ class University(Base):
     coach_asst_emails = Column(ARRAY(Text))
     coach_head_name = Column(Text)
     coach_asst_names = Column(ARRAY(Text))
-    last_scraped = Column(TIMESTAMPTZ)
-    created_at = Column(TIMESTAMPTZ, server_default=func.now())
+    last_scraped = Column(TIMESTAMP(timezone=True))
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     roster = relationship("RosterAthlete", back_populates="university", cascade="all, delete-orphan")
     conference_results = relationship("ConferenceResult", back_populates="university", cascade="all, delete-orphan")
@@ -50,7 +50,7 @@ class RosterAthlete(Base):
     events = Column(ARRAY(Text))
     best_times = Column(JSONB)  # {'100BR': 57.8, '200BR': 123.1}
     season = Column(Text)  # '2024-2025'
-    scraped_at = Column(TIMESTAMPTZ, server_default=func.now())
+    scraped_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     university = relationship("University", back_populates="roster")
 
@@ -66,6 +66,6 @@ class ConferenceResult(Base):
     rank_in_conf = Column(Integer)
     winning_time = Column(Numeric(8, 2))
     cutoff_time = Column(Numeric(8, 2))  # 8th place = last scorer in NCAA
-    scraped_at = Column(TIMESTAMPTZ, server_default=func.now())
+    scraped_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     university = relationship("University", back_populates="conference_results")
