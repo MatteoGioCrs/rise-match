@@ -45,3 +45,18 @@ app.include_router(emails.router)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "rise-match-api"}
+
+
+@app.get("/admin/migrate")
+async def migrate():
+    from database import engine
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free'"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer TEXT"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS rgpd_consent BOOLEAN DEFAULT FALSE"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_consent BOOLEAN DEFAULT FALSE"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_minor BOOLEAN DEFAULT FALSE"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
+    return {"status": "migration done"}
