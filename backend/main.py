@@ -60,3 +60,13 @@ async def migrate():
         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_minor BOOLEAN DEFAULT FALSE"))
         await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
     return {"status": "migration done"}
+
+@app.delete("/admin/clean-user/{email}")
+async def clean_user(email: str):
+    from database import get_db
+    from sqlalchemy import text
+    async for db in get_db():
+        await db.execute(text(f"DELETE FROM swimmer_profiles WHERE user_id = (SELECT id FROM users WHERE email = '{email}')"))
+        await db.execute(text(f"DELETE FROM users WHERE email = '{email}'"))
+        await db.commit()
+    return {"status": "deleted"}
