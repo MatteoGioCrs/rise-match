@@ -48,12 +48,10 @@ async def list_matches(
     swimmer_id: str,
     division: Optional[str] = Query(None),
     sort: str = Query("fit_score"),
-    plan: str = Query("free"),  # in production, derive from JWT
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List matches sorted by fit_score.
-    Free plan: top 5 only, no coach emails, vacancy_detail nulled.
+    List ALL matches (Paywall/Freemium désactivé pour les tests data).
     """
     swimmer_uuid = uuid.UUID(swimmer_id)
     stmt = select(Match).where(Match.swimmer_id == swimmer_uuid)
@@ -67,14 +65,13 @@ async def list_matches(
     matches = result.scalars().all()
 
     summaries = []
-    for i, m in enumerate(matches):
+    for m in matches:
         uni = await db.get(University, m.university_id)
         if not uni:
             continue
         if division and uni.division != division:
             continue
 
-        is_blurred = plan == "free" and i >= FREE_PLAN_LIMIT
         is_priority = bool(
             m.vacancy_detail and m.vacancy_detail.get("is_priority")
         )
@@ -94,8 +91,8 @@ async def list_matches(
             score_conf=float(m.score_conf) if m.score_conf else None,
             score_academic=float(m.score_academic) if m.score_academic else None,
             is_priority=is_priority,
-            is_blurred=is_blurred,
-            coach_head_email=uni.coach_head_email if plan != "free" else None,
+            is_blurred=False, # Toujours visible
+            coach_head_email=uni.coach_head_email, # Toujours visible
         ))
 
     return summaries
@@ -105,16 +102,9 @@ async def list_matches(
 async def get_match_detail(
     swimmer_id: str,
     university_id: int,
-    plan: str = Query("match"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Full match detail with all 6 module scores. Match plan required."""
-    if plan == "free":
-        raise HTTPException(
-            status_code=403,
-            detail="Match plan requis pour accéder aux détails complets.",
-        )
-
+    """Full match detail with all 6 module scores (Paywall désactivé)."""
     swimmer_uuid = uuid.UUID(swimmer_id)
     result = await db.execute(
         select(Match).where(
@@ -153,7 +143,6 @@ async def get_match_detail(
         is_blurred=False,
         coach_head_email=uni.coach_head_email if uni else None,
     )
-
 
 @router.post("/recompute")
 async def recompute_matches(
