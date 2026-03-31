@@ -91,34 +91,75 @@ def estimate_potential(
     birth_date: date,
     event: str,
     current_pb_scy: float,
-    height_cm: int,
-    wingspan_cm: int,
-) -> float:
+    height_cm: int = None,
+    wingspan_cm: int = None,
+    weight_kg: float = None,
+    shoe_size_eu: int = None,
+) -> dict:
     """
     Estimate SCY potential at peak age.
-    Peak age: 21 for breaststroke, 22 for distance (800+), 20 otherwise.
-    Heuristic: -0.8% per year remaining to peak, adjusted for height/wingspan.
-    Returns estimated SCY time at peak.
+    Returns dict with potential_scy, potential_display, at_age, improvement_pct, morpho_factors.
     """
+    from matching.conversion import seconds_to_display, get_stroke_from_event
+    stroke = get_stroke_from_event(event)
+    # Distance from event code
+    dist = 100
+    for d in [1500, 1650, 1000, 800, 500, 400, 200, 100, 50]:
+        if str(d) in event:
+            dist = d
+            break
+
+    # Peak age by event
+    if dist <= 100 and stroke in ("FR", "BA", "FL"):
+        peak_age = 21
+    elif dist <= 200:
+        peak_age = 22
+    elif dist <= 400:
+        peak_age = 23
+    elif stroke == "BR":
+        peak_age = 21
+    else:
+        peak_age = 24  # distance freestyle
+
     today = date.today()
     age = (today - birth_date).days / 365.25
-
-    if "BR" in event:
-        peak_age = 21.0
-    elif any(d in event for d in ["800", "1500"]):
-        peak_age = 22.0
-    else:
-        peak_age = 20.0
-
     years_to_peak = max(0.0, peak_age - age)
+    base_improvement = 0.008  # 0.8% per year
 
-    # Improvement rate base
-    rate = 0.008 * years_to_peak  # 0.8% per year
+    morpho_bonus = 0.0
+    morpho_factors: list[str] = []
 
-    # Morpho bonus: wingspan > height suggests breaststroke/butterfly leverage
-    if height_cm and wingspan_cm and wingspan_cm > height_cm:
-        morpho_bonus = (wingspan_cm - height_cm) * 0.0001
-        rate += morpho_bonus
+    if height_cm:
+        if stroke in ("FR", "BA") and height_cm >= 190:
+            morpho_bonus += 0.005
+            morpho_factors.append("Grande taille favorable")
+        elif height_cm >= 185:
+            morpho_bonus += 0.002
 
-    estimated = current_pb_scy * (1 - rate)
-    return round(estimated, 2)
+    if wingspan_cm and height_cm:
+        if wingspan_cm > height_cm + 5:
+            morpho_bonus += 0.004
+            morpho_factors.append("Envergure favorable (+)")
+        elif wingspan_cm > height_cm:
+            morpho_bonus += 0.002
+
+    if shoe_size_eu:
+        if stroke in ("FR", "BA", "FL") and shoe_size_eu >= 46:
+            morpho_bonus += 0.003
+            morpho_factors.append("Grande pointure (propulsion)")
+        elif shoe_size_eu >= 44:
+            morpho_bonus += 0.001
+
+    morpho_bonus = min(morpho_bonus, 0.015)
+    total_improvement = base_improvement + morpho_bonus
+    potential = current_pb_scy * ((1 - total_improvement) ** years_to_peak)
+    pct = round(total_improvement * years_to_peak * 100, 1)
+
+    return {
+        "potential_scy": round(potential, 2),
+        "potential_display": seconds_to_display(potential),
+        "at_age": peak_age,
+        "years_to_peak": round(years_to_peak, 1),
+        "improvement_pct": pct,
+        "morpho_factors": morpho_factors,
+    }
