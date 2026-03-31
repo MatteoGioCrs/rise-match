@@ -7,7 +7,7 @@ import os
 
 from config import settings
 from database import init_db, close_db
-from routers import swimmers, universities, matches, emails, auth
+from routers import swimmers, universities, matches, emails, auth, demo
 
 
 @asynccontextmanager
@@ -40,6 +40,7 @@ app.include_router(swimmers.router)
 app.include_router(universities.router)
 app.include_router(matches.router)
 app.include_router(emails.router)
+app.include_router(demo.router)
 
 
 @app.get("/health")

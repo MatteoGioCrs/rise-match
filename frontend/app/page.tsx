@@ -169,7 +169,7 @@ export default function LandingPage() {
               Calculer mes matchs <ArrowRight size={18} />
             </Link>
             <Link
-              href="/dashboard?demo=1"
+              href="/demo"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -182,7 +182,7 @@ export default function LandingPage() {
                 fontSize: "1rem",
               }}
             >
-              Voir un exemple
+              Tester l&apos;algorithme →
             </Link>
           </div>
         </div>
