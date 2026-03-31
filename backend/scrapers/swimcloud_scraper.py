@@ -360,3 +360,115 @@ async def fetch_conference_results(team_id: int, season: str = "2025-2026") -> l
             "cutoff_time": cutoff,
         })
     return results
+
+
+# ─── Division team listing ────────────────────────────────────────────────────
+# SwimCloud uses ?page= and ?division= or ?conference_id= query params.
+# These URL templates are best-effort and may need adjustment if SwimCloud
+# updates its routing.  The scraper degrades gracefully on parse failures.
+
+DIVISION_URLS: dict[str, str] = {
+    "D1":      f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NCAA_D1",
+    "D2":      f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NCAA_D2",
+    "D3":      f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NCAA_D3",
+    "NAIA":    f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NAIA",
+    "NJCAA":   f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NJCAA",
+    "USports": f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=USports",
+    "ACAC":    f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=ACAC",
+}
+
+# Shared in-memory team database (populated by build_full_team_database)
+_team_db: dict[int, dict] = {}  # {team_id: {name, division, country, ...}}
+
+
+async def scrape_division_teams(
+    division: str,
+    gender: str = "M",
+    max_pages: int = 20,
+) -> list[dict]:
+    """
+    Scrape team listing for one division from SwimCloud.
+
+    Returns list of {team_id, name, division, country}.
+    Returns empty list if the division URL is unreachable or produces no results.
+    """
+    url_template = DIVISION_URLS.get(division)
+    if not url_template:
+        return []
+
+    teams: list[dict] = []
+    seen_ids: set[int] = set()
+
+    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
+        for page in range(1, max_pages + 1):
+            url = url_template.format(page=page, gender=gender)
+            await asyncio.sleep(1.5)
+            try:
+                resp = await client.get(url)
+                resp.encoding = "utf-8"
+                resp.raise_for_status()
+            except Exception as e:
+                print(f"[SwimCloud] scrape_division_teams {division} page={page}: {e}")
+                break
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            # Extract team links: /team/{id}/ patterns
+            page_teams = []
+            for a in soup.find_all("a", href=re.compile(r"/team/(\d+)/")):
+                m = re.search(r"/team/(\d+)/", a["href"])
+                if not m:
+                    continue
+                tid = int(m.group(1))
+                if tid in seen_ids:
+                    continue
+                seen_ids.add(tid)
+                name = a.get_text(strip=True) or f"Team {tid}"
+                page_teams.append({
+                    "team_id": tid,
+                    "name": name,
+                    "division": division,
+                    "country": "CAN" if division in ("USports", "ACAC") else "USA",
+                })
+
+            if not page_teams:
+                break  # no more results
+
+            teams.extend(page_teams)
+
+    return teams
+
+
+async def build_full_team_database(
+    gender: str = "M",
+    divisions: Optional[list[str]] = None,
+    max_pages_per_division: int = 20,
+) -> dict[int, dict]:
+    """
+    Build a complete {team_id: info} dict by scraping all division pages.
+
+    Results are stored in the module-level _team_db cache.
+    Returns the populated dict.
+
+    Parameters
+    ----------
+    gender : str   "M" or "F"
+    divisions : list[str] | None  Subset of divisions to scrape (default: all)
+    max_pages_per_division : int  Stop after this many pages per division
+    """
+    global _team_db
+    target_divisions = divisions or list(DIVISION_URLS.keys())
+
+    for division in target_divisions:
+        print(f"[SwimCloud] scraping division={division} gender={gender}…")
+        teams = await scrape_division_teams(division, gender, max_pages_per_division)
+        for t in teams:
+            _team_db[t["team_id"]] = t
+        print(f"[SwimCloud] division={division}: {len(teams)} teams found")
+
+    return dict(_team_db)
+
+
+def get_team_database() -> dict[int, dict]:
+    """Return the current in-memory team database."""
+    return dict(_team_db)

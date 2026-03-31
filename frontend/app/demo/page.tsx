@@ -21,7 +21,8 @@ interface MatchResult {
   country: string;
   fit_score: number;
   scholarship_est: number;
-  data_source?: string;
+  data_source: string;
+  has_live_data: boolean;
   scores: {
     vacancy: number;
     conference: number;
@@ -34,6 +35,11 @@ interface MatchResult {
     is_priority: boolean;
     seniors_leaving: string[];
     events_vacating: string[];
+    events_vacating_top: string[];
+  };
+  relay_detail?: {
+    gaps_filled: number;
+    relays_covered: Array<{ relay: string; event: string; leg_time: string; gap_filled: boolean }>;
   };
   coach_email: string;
   email_subject: string;
@@ -48,6 +54,12 @@ interface DemoResponse {
     times_scy: Record<string, string>;
     source: string;
     ffn_error: string | null;
+  };
+  data_quality?: {
+    live_count: number;
+    total_count: number;
+    fetch_errors: string[];
+    season: string;
   };
   matches: MatchResult[];
   error?: string;
@@ -169,9 +181,13 @@ function MatchCard({ match }: { match: MatchResult }) {
                 Vacance critique
               </span>
             )}
-            {match.data_source === "live" && (
+            {match.has_live_data ? (
               <span style={{ background: "rgba(29,158,117,0.12)", color: "#1D9E75", fontSize: "0.68rem", padding: "0.12rem 0.45rem", borderRadius: 999, border: "1px solid rgba(29,158,117,0.3)" }}>
-                Live SwimCloud
+                Données live SwimCloud · Saison 2025-26
+              </span>
+            ) : (
+              <span style={{ background: "rgba(243,156,18,0.1)", color: "#F39C12", fontSize: "0.68rem", padding: "0.12rem 0.45rem", borderRadius: 999, border: "1px solid rgba(243,156,18,0.25)" }}>
+                Temps de référence · SwimCloud indisponible
               </span>
             )}
           </div>
@@ -713,6 +729,38 @@ export default function DemoPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Data quality summary */}
+              {results.data_quality && (
+                <div style={{
+                  background: results.data_quality.live_count === results.data_quality.total_count
+                    ? "rgba(29,158,117,0.07)"
+                    : "rgba(243,156,18,0.07)",
+                  border: `1px solid ${results.data_quality.live_count === results.data_quality.total_count
+                    ? "rgba(29,158,117,0.25)"
+                    : "rgba(243,156,18,0.2)"}`,
+                  borderRadius: 8,
+                  padding: "0.75rem 1rem",
+                  fontSize: "0.8rem",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 600, color: results.data_quality.live_count === results.data_quality.total_count ? "#1D9E75" : "#F39C12" }}>
+                      {results.data_quality.live_count === results.data_quality.total_count
+                        ? "Données live SwimCloud"
+                        : `${results.data_quality.live_count}/${results.data_quality.total_count} universités avec données live`}
+                    </span>
+                    <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.72rem" }}>
+                      · {results.data_quality.season}
+                    </span>
+                  </div>
+                  {results.data_quality.fetch_errors.length > 0 && (
+                    <div style={{ marginTop: "0.35rem", color: "rgba(255,255,255,0.35)", fontSize: "0.74rem" }}>
+                      SwimCloud indisponible pour : {results.data_quality.fetch_errors.slice(0, 3).join(", ")}
+                      {results.data_quality.fetch_errors.length > 3 && ` +${results.data_quality.fetch_errors.length - 3}`}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Division filter */}
               {results.matches.length > 0 && (

@@ -1,7 +1,8 @@
 """
 Demo matching endpoint — no auth, no DB persistence.
 Runs the full matching pipeline in memory.
-Tries live SwimCloud data (season 2025-26); falls back to division-based estimates.
+Tries live SwimCloud data (season 2025-26, season_id=29);
+falls back to division-based estimates with full transparency.
 """
 
 import asyncio
@@ -48,7 +49,6 @@ DIVISION_CUTOFFS: dict[str, dict[str, float]] = {
     "1500FR":{"D1_power": 916.0, "D1_mid": 950.0, "D2": 980.0, "NAIA": 1010.0, "USports": 1015.0, "ACAC": 1065.0},
 }
 
-# Estimated winning times (1st place, SCY)
 DIVISION_WINNING: dict[str, dict[str, float]] = {
     "100BR": {"D1_power": 46.5, "D1_mid": 50.0, "D2": 52.0, "NAIA": 54.0, "USports": 55.0, "ACAC": 58.0},
     "200BR": {"D1_power": 102.0, "D1_mid": 110.0, "D2": 115.0, "NAIA": 120.0, "USports": 122.0, "ACAC": 128.0},
@@ -73,16 +73,14 @@ def _division_key(division: str, conference: str) -> str:
         return "USports"
     if division == "ACAC":
         return "ACAC"
-    return division  # D2, NAIA etc.
+    return division
 
 
 def _fallback_conf_results(event: str, division: str, conference: str) -> dict:
     dk = _division_key(division, conference)
-    cutoffs = DIVISION_CUTOFFS.get(event, {})
-    winners = DIVISION_WINNING.get(event, {})
     return {
-        "winning_time": winners.get(dk),
-        "cutoff_time": cutoffs.get(dk),
+        "winning_time": DIVISION_WINNING.get(event, {}).get(dk),
+        "cutoff_time": DIVISION_CUTOFFS.get(event, {}).get(dk),
     }
 
 
@@ -217,8 +215,8 @@ DEMO_UNIVERSITIES = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TimeEntry(BaseModel):
-    event: str           # e.g. "100BR"
-    basin: str           # "LCM", "SCM", or "SCY"
+    event: str
+    basin: str          # "LCM", "SCM", or "SCY"
     time_seconds: float
     is_direct_scy: bool = False
 
@@ -227,12 +225,12 @@ class DemoMatchRequest(BaseModel):
     first_name: str
     last_name: str
     age: int
-    gender: str  # "M" or "F"
+    gender: str         # "M" or "F"
 
     ffn_licence: Optional[str] = None
     times: list[TimeEntry] = []
 
-    # Legacy flat fields (backwards compat with old form)
+    # Legacy flat fields (backwards compat)
     event_100br_lcm: Optional[float] = None
     event_200br_lcm: Optional[float] = None
     event_100fr_lcm: Optional[float] = None
@@ -262,23 +260,14 @@ def _scholarship_est(fit_score: float) -> int:
     return 0
 
 
-def _get_primary_event(scy_times: dict[str, float], scores: dict[str, float]) -> str:
-    """Return the event that contributes most to the conference score."""
-    if not scy_times:
-        return "100FR"
-    return max(scy_times.keys(), key=lambda e: scores.get(e, 0))
-
-
 _STROKE_EN = {
     "BR": "Breaststroke", "FR": "Freestyle",
-    "BA": "Backstroke", "FL": "Butterfly", "IM": "Individual Medley",
+    "BA": "Backstroke",   "FL": "Butterfly", "IM": "Individual Medley",
 }
 
 
 def _format_times_table(scy_times: dict[str, float]) -> str:
-    lines = []
-    for ev, t in scy_times.items():
-        lines.append(f"  {ev:<8} {seconds_to_display(t)} SCY (≈)")
+    lines = [f"  {ev:<8} {seconds_to_display(t)} SCY (≈)" for ev, t in scy_times.items()]
     return "\n".join(lines) if lines else "  (no times provided)"
 
 
@@ -292,27 +281,26 @@ def _generate_email(
     scy_times: dict[str, float],
     vacancy_detail: dict,
 ) -> tuple[str, str]:
-    # Primary event = the one with best time relative to division
     primary_event = list(scy_times.keys())[0] if scy_times else "100FR"
     stroke_code = get_stroke_from_event(primary_event)
     stroke_en = _STROKE_EN.get(stroke_code, "Swimming")
     dist = primary_event.replace(stroke_code, "")
-
     distances_str = f"{dist}m"
     other_events = [e for e in scy_times if e != primary_event]
     if other_events:
-        distances_str += "/" + "/".join(e.replace(get_stroke_from_event(e), "") + "m" for e in other_events[:2])
+        distances_str += "/" + "/".join(
+            e.replace(get_stroke_from_event(e), "") + "m" for e in other_events[:2]
+        )
 
     subject = (
         f"Recruit {last_name.upper()} {first_name} — "
         f"French {age}yo {stroke_en} {distances_str}"
     )
 
-    # Vacancy sentence
     vacancy_sentence = ""
     if vacancy_detail.get("is_priority"):
         departing = vacancy_detail.get("seniors_leaving", [])
-        events_vac = vacancy_detail.get("events_vacating", [])
+        events_vac = vacancy_detail.get("events_vacating_top") or vacancy_detail.get("events_vacating", [])
         if departing:
             vacancy_sentence = (
                 f" I noticed your {events_vac[0] if events_vac else primary_event} "
@@ -321,7 +309,6 @@ def _generate_email(
                 f"and I believe I could contribute immediately to your program."
             )
 
-    # Canada note
     canada_note = ""
     if uni.get("country") == "CAN":
         canada_note = (
@@ -330,12 +317,14 @@ def _generate_email(
         )
 
     times_table = _format_times_table(scy_times)
-
     country_str = "the United States" if uni["country"] == "USA" else "Canada"
 
     academic_line = ""
     if bac_mention:
-        mention_map = {"TB": "Très Bien (≥16/20)", "B": "Bien (14-16)", "AB": "Assez Bien (12-14)", "P": "Passable (10-12)"}
+        mention_map = {
+            "TB": "Très Bien (≥16/20)", "B": "Bien (14-16)",
+            "AB": "Assez Bien (12-14)", "P": "Passable (10-12)",
+        }
         academic_line = f"Academically, I hold a {mention_map.get(bac_mention, bac_mention)} average (French Baccalauréat)"
         if target_majors:
             academic_line += f" and am interested in {', '.join(target_majors[:2])}"
@@ -365,11 +354,12 @@ Note: Converted times are approximations (±2-3%). Sending multiple personalized
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Fetch live SwimCloud data with timeout + fallback
+# Fetch live SwimCloud data
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _fetch_with_timeout(team_id: int, gender: str, timeout_s: float = 5.0) -> Optional[dict]:
-    """Fetch SwimCloud snapshot with a timeout. Returns None on failure."""
+async def _fetch_with_timeout(
+    team_id: int, gender: str, timeout_s: float = 5.0
+) -> Optional[dict]:
     try:
         from scrapers.swimcloud_scraper import fetch_university_snapshot
         return await asyncio.wait_for(
@@ -381,27 +371,32 @@ async def _fetch_with_timeout(team_id: int, gender: str, timeout_s: float = 5.0)
         return None
 
 
-def _build_fallback_roster(uni: dict) -> tuple[list[dict], list[dict]]:
-    """Return (roster_seniors, roster_all) from static data embedded per university."""
-    static: dict[str, tuple[list, list]] = {
-        "Drury University": (
-            [
-                {"name": "Davi Mourao", "study_year": 5, "events": ["100BR", "200BR", "200IM"], "best_times": {"100BR": 51.88, "200BR": 112.51}},
-                {"name": "Joao Nogueira", "study_year": 4, "events": ["100BR", "200BR"], "best_times": {"100BR": 53.20, "200BR": 115.40}},
-            ],
-            [
-                {"name": "Davi Mourao", "study_year": 5, "events": ["100BR", "200BR", "200IM"], "best_times": {"100BR": 51.88, "200BR": 112.51}},
-                {"name": "Joao Nogueira", "study_year": 4, "events": ["100BR", "200BR"], "best_times": {"100BR": 53.20, "200BR": 115.40}},
-                {"name": "Marcus Webb", "study_year": 2, "events": ["100FR", "200FR"], "best_times": {"100FR": 47.1, "200FR": 103.5}},
-                {"name": "Luis Torres", "study_year": 1, "events": ["100FL", "200IM"], "best_times": {"100FL": 52.0}},
-            ],
-        ),
+def _build_fallback_snapshot(uni: dict) -> dict:
+    """
+    Build a minimal university_snapshot from static reference data when
+    SwimCloud is unavailable.  Provides limited vacancy detection only.
+    """
+    static_departing: dict[str, list[dict]] = {
+        "Drury University": [
+            {"name": "Davi Mourao",    "study_year": 5, "events": ["100BR", "200BR", "200IM"], "best_times": {"100BR": 51.88, "200BR": 112.51}},
+            {"name": "Joao Nogueira",  "study_year": 4, "events": ["100BR", "200BR"],           "best_times": {"100BR": 53.20, "200BR": 115.40}},
+        ],
     }
-    name = uni["name"]
-    if name in static:
-        seniors, all_ = static[name]
-        return seniors, all_
-    return [], []
+    departing = static_departing.get(uni["name"], [])
+    # Mark all as is_departing
+    for a in departing:
+        a["is_departing"] = True
+
+    return {
+        "team_id": uni.get("team_id"),
+        "season": "2025-26",
+        "roster_count": len(departing),
+        "roster_all": departing,
+        "departing_athletes": departing,
+        "best_times": {},       # no live data
+        "team_top8_times": {},
+        "departing_events": [ev for a in departing for ev in a.get("events", [])],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -430,28 +425,27 @@ async def demo_ffn_sync(licence: str = Query(..., description="FFN licence numbe
     if not best:
         return {"ok": False, "error": "Aucune performance 50m (LCM) trouvée pour cette licence."}
 
-    times_display = {ev: seconds_to_display(t) for ev, t in best.items()}
-
-    return {"ok": True, "times": best, "times_display": times_display}
+    return {
+        "ok": True,
+        "times": best,
+        "times_display": {ev: seconds_to_display(t) for ev, t in best.items()},
+    }
 
 
 @router.post("/match")
 async def demo_match(payload: DemoMatchRequest):
     """Full matching pipeline — no auth, no DB persistence."""
 
-    # 1. Build times from new `times` list OR legacy flat fields
+    # 1. Collect raw times from new list OR legacy flat fields
     raw_times: list[TimeEntry] = list(payload.times)
 
-    legacy_map = {
-        "100BR": payload.event_100br_lcm,
-        "200BR": payload.event_200br_lcm,
-        "100FR": payload.event_100fr_lcm,
-        "200FR": payload.event_200fr_lcm,
-        "100BA": payload.event_100ba_lcm,
-        "100FL": payload.event_100fl_lcm,
-        "200IM": payload.event_200im_lcm,
-    }
     if not raw_times:
+        legacy_map = {
+            "100BR": payload.event_100br_lcm, "200BR": payload.event_200br_lcm,
+            "100FR": payload.event_100fr_lcm, "200FR": payload.event_200fr_lcm,
+            "100BA": payload.event_100ba_lcm, "100FL": payload.event_100fl_lcm,
+            "200IM": payload.event_200im_lcm,
+        }
         for ev, t in legacy_map.items():
             if t and t > 0:
                 raw_times.append(TimeEntry(event=ev, basin="LCM", time_seconds=t))
@@ -466,8 +460,7 @@ async def demo_match(payload: DemoMatchRequest):
             for p in perfs:
                 if p.basin_type == "LCM" and p.time_seconds:
                     raw_times.append(TimeEntry(
-                        event=p.event_code,
-                        basin="LCM",
+                        event=p.event_code, basin="LCM",
                         time_seconds=p.time_seconds,
                     ))
             if raw_times:
@@ -505,75 +498,80 @@ async def demo_match(payload: DemoMatchRequest):
         if conversion_details else 0.8
     )
     score_conversion = round(avg_confidence * 100, 2)
-
     swimmer_events = list(scy_times.keys())
 
-    # Minimal perf list for progression (single data point → score=50)
     perf_dicts = [
-        {
-            "event_code": ev,
-            "basin_type": "SCY",
-            "time_seconds": t,
-            "time_raw": seconds_to_display(t),
-            "date": None,
-            "is_pb": True,
-        }
+        {"event_code": ev, "basin_type": "SCY", "time_seconds": t,
+         "time_raw": seconds_to_display(t), "date": None, "is_pb": True}
         for ev, t in scy_times.items()
     ]
 
-    # 3. Fetch live SwimCloud for all universities in parallel (with timeout)
+    # 3. Fetch live SwimCloud for all universities with team IDs in parallel
     gender = payload.gender or "M"
     live_data: dict[str, Optional[dict]] = {}
-    uni_with_ids = [(u, u["team_id"]) for u in DEMO_UNIVERSITIES if u["team_id"]]
+    fetch_errors: list[str] = []
+
+    unis_with_ids = [u for u in DEMO_UNIVERSITIES if u["team_id"]]
 
     async def _fetch_one(uni: dict) -> tuple[str, Optional[dict]]:
         snap = await _fetch_with_timeout(uni["team_id"], gender, timeout_s=5.0)
         return uni["name"], snap
 
-    fetch_tasks = [_fetch_one(u) for u, _ in uni_with_ids]
-    fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
-    for item in fetch_results:
+    results = await asyncio.gather(
+        *[_fetch_one(u) for u in unis_with_ids], return_exceptions=True
+    )
+    for item in results:
         if isinstance(item, tuple):
             name, snap = item
             live_data[name] = snap
+            if snap is None:
+                fetch_errors.append(name)
+        elif isinstance(item, Exception):
+            fetch_errors.append(str(item)[:80])
+
+    # Also note universities with no team_id
+    for u in DEMO_UNIVERSITIES:
+        if not u["team_id"]:
+            fetch_errors.append(f"{u['name']} (pas de team_id SwimCloud)")
 
     # 4. Match each university
     matches = []
     for uni in DEMO_UNIVERSITIES:
         snap = live_data.get(uni["name"])
+        has_live_data = snap is not None
 
-        # Build roster_seniors and roster_all
-        if snap and snap.get("departing_athletes"):
-            roster_seniors = snap["departing_athletes"]
-            roster_all = snap.get("roster_all", [])
+        # Build or use snapshot
+        if has_live_data:
+            university_snapshot = snap
+            data_source = "SwimCloud live · Saison 2025-26"
         else:
-            roster_seniors, roster_all = _build_fallback_roster(uni)
+            university_snapshot = _build_fallback_snapshot(uni)
+            data_source = "Temps de référence · SwimCloud indisponible"
 
-        # Conference results: prefer live, fall back to division estimates
+        # Conference results: prefer live best_times, fall back to division estimates
         def _get_conf_results(event: str) -> dict:
-            if snap:
+            if has_live_data:
                 top8 = snap.get("team_top8_times", {}).get(event)
                 best = snap.get("best_times", {}).get(event, {})
                 if top8:
                     return {"winning_time": best.get("time_seconds"), "cutoff_time": top8}
             return _fallback_conf_results(event, uni["division"], uni["conference"])
 
-        # Vacancy
-        vacancy_result = compute_vacancy_score(swimmer_events, roster_seniors)
+        # Vacancy — pass snapshot (new dual-dispatch path)
+        vacancy_result = compute_vacancy_score(swimmer_events, university_snapshot)
         score_vacancy = vacancy_result["score"]
 
-        # Conference — best event score
+        # Conference — best event score across swimmer's events
         best_conf_score = 0.0
         for ev in swimmer_events:
-            if ev in scy_times:
-                conf_data = _get_conf_results(ev)
-                c = compute_conference_score(scy_times[ev], ev, conf_data)
-                if c["score"] > best_conf_score:
-                    best_conf_score = c["score"]
+            conf_data = _get_conf_results(ev)
+            c = compute_conference_score(scy_times[ev], ev, conf_data)
+            if c["score"] > best_conf_score:
+                best_conf_score = c["score"]
         score_conf = best_conf_score if best_conf_score > 0 else 40.0
 
-        # Relay
-        relay_result = compute_relay_score(scy_times, roster_all)
+        # Relay — pass snapshot (new dual-dispatch path)
+        relay_result = compute_relay_score(scy_times, university_snapshot)
         score_relay = relay_result["score"]
 
         # Academic
@@ -617,28 +615,36 @@ async def demo_match(payload: DemoMatchRequest):
             "country": uni["country"],
             "fit_score": fit_score,
             "scholarship_est": _scholarship_est(fit_score),
-            "data_source": "live" if snap else "estimated",
+            "data_source": data_source,
+            "has_live_data": has_live_data,
             "scores": {
-                "vacancy": round(score_vacancy, 1),
+                "vacancy":    round(score_vacancy, 1),
                 "conference": round(score_conf, 1),
                 "conversion": round(score_conversion, 1),
-                "relay": round(score_relay, 1),
-                "academic": round(score_academic, 1),
-                "progression": round(score_progress, 1),
+                "relay":      round(score_relay, 1),
+                "academic":   round(score_academic, 1),
+                "progression":round(score_progress, 1),
             },
             "vacancy_detail": {
-                "is_priority": vacancy_result["is_priority"],
-                "seniors_leaving": vacancy_result["seniors_leaving"],
-                "events_vacating": vacancy_result["events_vacating"],
+                "is_priority":         vacancy_result["is_priority"],
+                "seniors_leaving":     vacancy_result["seniors_leaving"],
+                "events_vacating":     vacancy_result.get("events_vacating", []),
+                "events_vacating_top": vacancy_result.get("events_vacating_top", []),
             },
-            "coach_email": uni["coach_email"],
+            "relay_detail": {
+                "gaps_filled":    relay_result["gaps_filled"],
+                "relays_covered": relay_result.get("relays_covered", []),
+            },
+            "coach_email":   uni["coach_email"],
             "email_subject": subject,
-            "email_body": body,
+            "email_body":    body,
         })
 
     matches.sort(key=lambda m: m["fit_score"], reverse=True)
     for i, m in enumerate(matches):
         m["rank"] = i + 1
+
+    live_count = sum(1 for m in matches if m["has_live_data"])
 
     return {
         "swimmer": {
@@ -648,6 +654,12 @@ async def demo_match(payload: DemoMatchRequest):
             "times_scy": times_scy_display,
             "source": times_source,
             "ffn_error": ffn_error,
+        },
+        "data_quality": {
+            "live_count": live_count,
+            "total_count": len(matches),
+            "fetch_errors": fetch_errors,
+            "season": "2025-26 (season_id=29)",
         },
         "matches": matches,
     }
