@@ -127,14 +127,19 @@ async def search_swimmer(nom: str, prenom: str) -> list[dict]:
     return results
 
 
-async def fetch_swimmer_perfs(licence_id: str) -> list[Performance]:
+async def fetch_swimmer_perfs(licence_id: str, basin: str = "LCM") -> list[Performance]:
     """
     Fetch all performances for a licence number since 2018.
     Parses the HTML table: event, basin (50m/25m), time, date, meeting, FINA points.
     Detects personal bests.
+
+    URL format post-cyberattack (Dec 2025):
+      ?idact=nat&idrch_id={licence}&idbas=50  (LCM)
+      ?idact=nat&idrch_id={licence}&idbas=25  (SCM)
     """
     url = BASE_URL + "nat_recherche.php"
-    params = {"idact": "nat", "go": "perf", "id": licence_id}
+    idbas = "25" if basin == "SCM" else "50"
+    params = {"idact": "nat", "idrch_id": licence_id, "idbas": idbas}
 
     await asyncio.sleep(REQUEST_DELAY)
 
@@ -154,7 +159,7 @@ async def fetch_swimmer_perfs(licence_id: str) -> list[Performance]:
     html = resp.text
 
     # Log a snippet in dev for debugging
-    print(f"[FFN] licence={licence_id} html_length={len(html)} snippet={html[:500]!r}")
+    print(f"[FFN] licence={licence_id} basin={basin} idbas={idbas} html_length={len(html)} snippet={html[:500]!r}")
 
     soup = BeautifulSoup(html, "html.parser")
     performances: list[Performance] = []
