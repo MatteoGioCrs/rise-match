@@ -49,23 +49,30 @@ async def debug_ffn(
     idbas = "25" if basin == "SCM" else "50"
     params = {"idact": "nat", "idrch_id": licence, "idbas": idbas}
 
-    html_preview = None
     html_length = 0
+    raw_html = ""
     try:
         async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=30) as client:
             resp = await client.get(url, params=params)
-            resp.encoding = "iso-8859-1"
-            raw_html = resp.text
+            raw_html = resp.content.decode("utf-8", errors="replace")
             html_length = len(raw_html)
-            html_preview = raw_html[:1000]
     except Exception as e:
         return {"licence": licence, "basin": basin, "error": str(e), "count": 0, "performances": []}
+
+    from bs4 import BeautifulSoup as _BS
+    soup = _BS(raw_html, "html.parser")
 
     perfs = await fetch_swimmer_perfs(licence, basin)
     result: dict = {
         "licence": licence,
         "basin": basin,
         "html_length": html_length,
+        "tables_found": len(soup.find_all("table")),
+        "h5_found": [h.get_text(strip=True) for h in soup.find_all("h5")],
+        "divs_with_class": list({
+            (d.get("class") or [""])[0]
+            for d in soup.find_all("div", class_=True)
+        })[:20],
         "count": len(perfs),
         "performances": [
             {
@@ -81,6 +88,6 @@ async def debug_ffn(
             for p in perfs[:10]
         ],
     }
-    if len(perfs) == 0:
-        result["html_preview"] = html_preview
+    # Always include the central section (where MPP table lives) for selector debugging
+    result["html_preview"] = raw_html[5000:8000]
     return result

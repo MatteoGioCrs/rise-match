@@ -154,105 +154,113 @@ async def fetch_swimmer_perfs(licence_id: str, basin: str = "LCM") -> list[Perfo
         print(f"FFN request failed for licence {licence_id}: {e}")
         return []
 
-    # FFN Extranat returns HTML encoded in iso-8859-1
-    resp.encoding = "iso-8859-1"
-    html = resp.text
+    # Bug fix: page is UTF-8, not iso-8859-1
+    html = resp.content.decode("utf-8", errors="replace")
 
     # Log a snippet in dev for debugging
-    print(f"[FFN] licence={licence_id} basin={basin} idbas={idbas} html_length={len(html)} snippet={html[:500]!r}")
+    print(f"[FFN] licence={licence_id} basin={basin} idbas={idbas} html_length={len(html)}")
 
     soup = BeautifulSoup(html, "html.parser")
     performances: list[Performance] = []
 
-    # Parse performance tables — FFN groups by event
-    # Try specific classes first, fall back to any table
-    tables = soup.find_all("table", {"class": lambda x: x and ("tableau" in x or "resultats" in x)})
-    if not tables:
-        tables = soup.find_all("table")
+    # Find the MPP table — look for a heading that mentions "Meilleures Performances" or "MPP",
+    # then take the next <table>. Fallback: first table on the page.
+    mpp_table = None
+    for heading in soup.find_all(["h3", "h4", "h5", "div", "p", "span", "td", "th"]):
+        text = heading.get_text(strip=True).upper()
+        if "MEILLEURES PERFORMANCES" in text or " MPP" in text:
+            mpp_table = heading.find_next("table")
+            if mpp_table:
+                break
 
-    for table in tables:
-        rows = table.find_all("tr")
-        current_event = None
-        current_basin = "LCM"
+    if mpp_table is None:
+        mpp_table = soup.find("table")
 
-        for row in rows:
-            # Header rows often contain event name
-            header_cells = row.find_all("th")
-            if header_cells:
-                header_text = " ".join(c.get_text(strip=True) for c in header_cells).upper()
-                ev = _normalise_event(header_text)
-                if ev:
-                    current_event = ev
-                current_basin = _basin_from_text(header_text)
-                continue
+    if mpp_table is None:
+        print(f"[FFN] No table found for licence={licence_id}")
+        return []
 
-            cells = row.find_all("td")
-            if len(cells) < 3 or not current_event:
-                continue
+    # Expected column layout (FFN 2025): Épreuve | Bassin | Temps | Points | Date | Compétition
+    # Each <tr> is one performance — event code is in col[0], not a header row.
+    for row in mpp_table.find_all("tr"):
+        # Skip pure header rows
+        if row.find_all("th") and not row.find_all("td"):
+            continue
 
-            texts = [c.get_text(strip=True) for c in cells]
+        cells = row.find_all("td")
+        if len(cells) < 3:
+            continue
 
-            # Detect PB marker
-            is_pb = any(
-                cls in row.get("class", []) or "pb" in row.get("class", [""])
-                for cls in ["pb", "record", "perf_pb"]
-            ) or any("PB" in t or "REC" in t for t in texts)
+        texts = [c.get_text(strip=True) for c in cells]
 
-            # Try to extract time (first numeric-looking cell)
-            time_raw = None
-            time_seconds = None
-            for t in texts:
-                parsed = _parse_time(t)
-                if parsed and 10 < parsed < 1200:
-                    time_raw = t
-                    time_seconds = parsed
+        # col[0] → event name
+        event_code = _normalise_event(texts[0])
+        if not event_code:
+            continue
+
+        # col[1] → basin text (50m/25m/Grand Bassin/Petit Bassin)
+        current_basin = _basin_from_text(texts[1]) if len(texts) > 1 else "LCM"
+
+        # col[2] → time (first parseable value from col 2 onward)
+        time_raw = None
+        time_seconds = None
+        for t in texts[2:]:
+            parsed = _parse_time(t)
+            if parsed and 10 < parsed < 1200:
+                time_raw = t
+                time_seconds = parsed
+                break
+
+        if time_seconds is None:
+            continue
+
+        # Date: look for DD/MM/YYYY or YYYY-MM-DD in any cell
+        perf_date = None
+        for t in texts:
+            for fmt in [r"(\d{2})/(\d{2})/(\d{4})", r"(\d{4})-(\d{2})-(\d{2})"]:
+                m = re.search(fmt, t)
+                if m:
+                    try:
+                        g = m.groups()
+                        if len(g[0]) == 4:
+                            perf_date = date(int(g[0]), int(g[1]), int(g[2]))
+                        else:
+                            perf_date = date(int(g[2]), int(g[1]), int(g[0]))
+                    except ValueError:
+                        pass
                     break
+            if perf_date:
+                break
 
-            if time_seconds is None:
-                continue
+        if perf_date and perf_date.year < 2018:
+            continue
 
-            # Date: look for DD/MM/YYYY or YYYY-MM-DD
-            perf_date = None
-            for t in texts:
-                for fmt in [r"(\d{2})/(\d{2})/(\d{4})", r"(\d{4})-(\d{2})-(\d{2})"]:
-                    m = re.search(fmt, t)
-                    if m:
-                        try:
-                            g = m.groups()
-                            if len(g[0]) == 4:
-                                perf_date = date(int(g[0]), int(g[1]), int(g[2]))
-                            else:
-                                perf_date = date(int(g[2]), int(g[1]), int(g[0]))
-                        except ValueError:
-                            pass
-                        break
-                if perf_date:
-                    break
+        # Meeting name: longest text field
+        meeting_name = max(texts, key=len) if texts else None
 
-            if perf_date and perf_date.year < 2018:
-                continue
+        # FINA points: integer in range 100–1200
+        fina_points = None
+        for t in texts:
+            if t.isdigit() and 100 <= int(t) <= 1200:
+                fina_points = int(t)
 
-            # Meeting name: longest text field
-            meeting_name = max(texts, key=len) if texts else None
+        # PB: row class or text marker
+        is_pb = bool(
+            set(row.get("class", [])) & {"pb", "record", "perf_pb"}
+        ) or any("PB" in t or "REC" in t for t in texts)
 
-            # FINA points: integer in texts
-            fina_points = None
-            for t in texts:
-                if t.isdigit() and 100 <= int(t) <= 1200:
-                    fina_points = int(t)
-
-            performances.append(
-                Performance(
-                    event_code=current_event,
-                    basin_type=current_basin,
-                    time_seconds=time_seconds,
-                    time_raw=time_raw or "",
-                    perf_date=perf_date,
-                    meeting_name=meeting_name,
-                    fina_points=fina_points,
-                    is_pb=is_pb,
-                )
+        performances.append(
+            Performance(
+                event_code=event_code,
+                basin_type=current_basin,
+                time_seconds=time_seconds,
+                time_raw=time_raw or "",
+                perf_date=perf_date,
+                meeting_name=meeting_name,
+                fina_points=fina_points,
+                is_pb=is_pb,
             )
+        )
 
     return performances
 
