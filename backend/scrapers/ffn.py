@@ -70,14 +70,20 @@ def _parse_html(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     results: list[dict] = []
 
-    for table in soup.find_all("table", class_=lambda c: c and "w-full" in c):
+    # No class filter — match any table whose thead mentions performances
+    for table in soup.find_all("table"):
         thead = table.find("thead")
         if not thead:
             continue
-        header = thead.get_text()
-        if "MPP" not in header and "Meilleures" not in header:
+        header = thead.get_text(separator=" ")
+        if "MPP" not in header and "Meilleures" not in header and "Performances" not in header:
             continue
-        basin = "LCM" if ("50 mètres" in header or "50 metres" in header) else "SCM"
+
+        # Basin: look for "50" near "mètre/metre/tres" in the header
+        if "50" in header and ("tres" in header or "mètre" in header or "metre" in header):
+            basin = "LCM"
+        else:
+            basin = "SCM"
 
         tbody = table.find("tbody")
         if not tbody:
@@ -103,8 +109,12 @@ def _parse_html(html: str) -> list[dict]:
                 pts_raw = tds[2].get_text(strip=True).replace("pts", "").strip()
                 fina_pts = int(pts_raw) if pts_raw.isdigit() else 0
 
-                lieu_ps = tds[3].find_all("p")
-                lieu = lieu_ps[0].get_text(strip=True) if lieu_ps else tds[3].get_text(strip=True)
+                lieu_div = tds[3].find("div")
+                if lieu_div:
+                    ps = lieu_div.find_all("p")
+                    lieu = ps[0].get_text(strip=True) if ps else ""
+                else:
+                    lieu = tds[3].get_text(strip=True)
 
                 perf_date = _parse_date(tds[4].get_text(strip=True))
                 comp_type = tds[5].get_text(strip=True).strip("[]")
