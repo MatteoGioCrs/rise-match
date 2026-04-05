@@ -1,298 +1,173 @@
 """
-FFN Extranat scraper.
-Fetches swimmer performances from the French swimming federation's public results website.
-Uses httpx async + BeautifulSoup4.
-"""
+FFN Extranat scraper — rewritten from confirmed HTML structure (2025).
 
-import asyncio
-import re
-from dataclasses import dataclass
-from datetime import date
-from typing import Optional
+URL: https://ffn.extranat.fr/webffn/nat_recherche.php?idact=nat&idrch_id={licence}&idbas=50
+
+Page structure:
+  Multiple <table class="w-full text-sm text-left text-gray-500"> tables.
+  Each has a <thead> with:
+    <p>Meilleures Performances Personnelles (MPP)</p>
+    <p class="text-sm font-medium">Bassin : 50 metres</p>  (or 25 metres)
+  Each <tr class="border-b ..."> in <tbody> is one performance.
+  Column layout:
+    th[scope="row"] = event ("50 NL", "100 BR", etc.)
+    td[0] = time  ("00:23.26" or "01:02.41")
+    td[1] = age   ("(16 ans)")
+    td[2] = FINA points ("1226 pts")
+    td[3] = location div with <p>ANGERS</p><p>(FRA)</p>
+    td[4] = date  ("12/12/2025")
+    td[5] = comp type ("[NAT]", "[REG]", etc.)
+    td[6] = (empty)
+    td[7] = club  ("PAYS D'AIX NATATION")
+"""
 
 import httpx
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-BASE_URL = "https://ffn.extranat.fr/webffn/"
+BASE_URL = "https://ffn.extranat.fr/webffn/nat_recherche.php"
+
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; research bot)",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
     "Accept-Language": "fr-FR,fr;q=0.9",
 }
-REQUEST_DELAY = 1.5  # seconds between requests
+
+EVENT_MAP: dict[str, str] = {
+    "50 NL": "50FR",   "100 NL": "100FR",  "200 NL": "200FR",
+    "400 NL": "400FR", "800 NL": "800FR",  "1500 NL": "1500FR",
+    "50 BR": "50BR",   "100 BR": "100BR",  "200 BR": "200BR",
+    "50 DO": "50BA",   "100 DO": "100BA",  "200 DO": "200BA",
+    "50 PA": "50FL",   "100 PA": "100FL",  "200 PA": "200FL",
+    "100 4N": "100IM", "200 4N": "200IM",  "400 4N": "400IM",
+}
 
 
-@dataclass
-class Performance:
-    event_code: str
-    basin_type: str   # 'LCM', 'SCM', 'SCY'
-    time_seconds: float
-    time_raw: str
-    perf_date: Optional[date]
-    meeting_name: Optional[str]
-    fina_points: Optional[int]
-    is_pb: bool
-
-
-def _parse_time(raw: str) -> Optional[float]:
-    """Convert '1:02.41' or '57.80' to float seconds."""
-    raw = raw.strip().replace(",", ".")
-    if not raw or raw in ("-", "NT", "DQ", ""):
-        return None
+def _parse_time(time_str: str) -> float | None:
+    """'00:23.26' → 23.26,  '01:02.41' → 62.41,  '15:03.85' → 903.85"""
     try:
-        if ":" in raw:
-            parts = raw.split(":")
+        time_str = time_str.strip()
+        if ":" in time_str:
+            parts = time_str.split(":")
+            if len(parts) == 3:
+                return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
             return int(parts[0]) * 60 + float(parts[1])
-        return float(raw)
-    except (ValueError, IndexError):
+        return float(time_str)
+    except Exception:
         return None
 
 
-def _normalise_event(raw: str) -> Optional[str]:
-    """Map FFN event names to internal codes like '100BR', '200FR'."""
-    raw = raw.strip().upper()
-    mapping = {
-        "50 M NAGE LIBRE": "50FR",   "50 NL": "50FR",
-        "100 M NAGE LIBRE": "100FR", "100 NL": "100FR",
-        "200 M NAGE LIBRE": "200FR", "200 NL": "200FR",
-        "400 M NAGE LIBRE": "400FR", "400 NL": "400FR",
-        "800 M NAGE LIBRE": "800FR", "800 NL": "800FR",
-        "1500 M NAGE LIBRE": "1500FR","1500 NL": "1500FR",
-        "50 M DOS": "50BA",  "50 DO": "50BA",
-        "100 M DOS": "100BA","100 DO": "100BA",
-        "200 M DOS": "200BA","200 DO": "200BA",
-        "50 M BRASSE": "50BR",  "50 BR": "50BR",
-        "100 M BRASSE": "100BR","100 BR": "100BR",
-        "200 M BRASSE": "200BR","200 BR": "200BR",
-        "50 M PAPILLON": "50FL", "50 PA": "50FL",
-        "100 M PAPILLON": "100FL","100 PA": "100FL",
-        "200 M PAPILLON": "200FL","200 PA": "200FL",
-        "200 M 4 NAGES": "200IM","200 4N": "200IM",
-        "400 M 4 NAGES": "400IM","400 4N": "400IM",
-    }
-    for key, code in mapping.items():
-        if key in raw or raw == key:
-            return code
-    # Try numeric prefix + stroke abbrev
-    m = re.match(r"(\d+)\s*[MX]?\s*(NL|BR|DO|PA|4N)", raw)
-    if m:
-        dist = m.group(1)
-        stroke_map = {"NL": "FR", "BR": "BR", "DO": "BA", "PA": "FL", "4N": "IM"}
-        return dist + stroke_map.get(m.group(2), "")
-    return raw[:10] if raw else None
-
-
-def _basin_from_text(text: str) -> str:
-    text = text.strip().upper()
-    if "50M" in text or "50 M" in text or "GRAND BASSIN" in text:
-        return "LCM"
-    if "25M" in text or "25 M" in text or "PETIT BASSIN" in text:
-        return "SCM"
-    return "LCM"
-
-
-async def search_swimmer(nom: str, prenom: str) -> list[dict]:
-    """
-    Search FFN Extranat by name.
-    Returns list of {licence, name, club, birth_year}.
-    """
-    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
-        resp = await client.post(
-            BASE_URL + "nat_recherche.php",
-            params={"idact": "nat"},
-            data={"nom": nom, "prenom": prenom},
-        )
-        resp.raise_for_status()
-
-    resp.encoding = "iso-8859-1"
-    soup = BeautifulSoup(resp.text, "html.parser")
-    results = []
-
-    # FFN result table varies — parse rows with licence-like IDs
-    for row in soup.select("table tr"):
-        cells = row.find_all("td")
-        if len(cells) >= 4:
-            licence = cells[0].get_text(strip=True)
-            name = cells[1].get_text(strip=True)
-            club = cells[2].get_text(strip=True)
-            birth_year_text = cells[3].get_text(strip=True)
-            birth_year = int(birth_year_text) if birth_year_text.isdigit() else None
-            if licence and name:
-                results.append({
-                    "licence": licence,
-                    "name": name,
-                    "club": club,
-                    "birth_year": birth_year,
-                })
-
-    return results
-
-
-async def fetch_swimmer_perfs(licence_id: str, basin: str = "LCM") -> list[Performance]:
-    """
-    Fetch all performances for a licence number since 2018.
-    Parses the HTML table: event, basin (50m/25m), time, date, meeting, FINA points.
-    Detects personal bests.
-
-    URL format post-cyberattack (Dec 2025):
-      ?idact=nat&idrch_id={licence}&idbas=50  (LCM)
-      ?idact=nat&idrch_id={licence}&idbas=25  (SCM)
-    """
-    url = BASE_URL + "nat_recherche.php"
-    idbas = "25" if basin == "SCM" else "50"
-    params = {"idact": "nat", "idrch_id": licence_id, "idbas": idbas}
-
-    await asyncio.sleep(REQUEST_DELAY)
-
+def _parse_date(date_str: str) -> str:
+    """'12/12/2025' → '2025-12-12'"""
     try:
-        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=30) as client:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        print(f"FFN HTTP error for licence {licence_id}: {e}")
-        return []
-    except Exception as e:
-        print(f"FFN request failed for licence {licence_id}: {e}")
-        return []
+        return datetime.strptime(date_str.strip(), "%d/%m/%Y").strftime("%Y-%m-%d")
+    except Exception:
+        return date_str.strip()
 
-    # Bug fix: page is UTF-8, not iso-8859-1
-    html = resp.content.decode("utf-8", errors="replace")
 
-    # Log a snippet in dev for debugging
-    print(f"[FFN] licence={licence_id} basin={basin} idbas={idbas} html_length={len(html)}")
-
+def _parse_tables(html: str) -> list[dict]:
+    """Parse all MPP performance tables from Extranat HTML."""
     soup = BeautifulSoup(html, "html.parser")
-    performances: list[Performance] = []
+    performances: list[dict] = []
 
-    # Find the MPP table — look for a heading that mentions "Meilleures Performances" or "MPP",
-    # then take the next <table>. Fallback: first table on the page.
-    mpp_table = None
-    for heading in soup.find_all(["h3", "h4", "h5", "div", "p", "span", "td", "th"]):
-        text = heading.get_text(strip=True).upper()
-        if "MEILLEURES PERFORMANCES" in text or " MPP" in text:
-            mpp_table = heading.find_next("table")
-            if mpp_table:
-                break
-
-    if mpp_table is None:
-        mpp_table = soup.find("table")
-
-    if mpp_table is None:
-        print(f"[FFN] No table found for licence={licence_id}")
-        return []
-
-    # Expected column layout (FFN 2025): Épreuve | Bassin | Temps | Points | Date | Compétition
-    # Each <tr> is one performance — event code is in col[0], not a header row.
-    for row in mpp_table.find_all("tr"):
-        # Skip pure header rows
-        if row.find_all("th") and not row.find_all("td"):
+    for table in soup.find_all("table", class_=lambda c: c and "w-full" in c):
+        thead = table.find("thead")
+        if not thead:
             continue
 
-        cells = row.find_all("td")
-        if len(cells) < 3:
+        header_text = thead.get_text()
+        if "50 m" in header_text.lower() or "50m" in header_text.lower():
+            basin = "LCM"
+        elif "25 m" in header_text.lower() or "25m" in header_text.lower():
+            basin = "SCM"
+        else:
+            continue  # not an MPP table
+
+        tbody = table.find("tbody")
+        if not tbody:
             continue
 
-        texts = [c.get_text(strip=True) for c in cells]
+        for row in tbody.find_all("tr"):
+            try:
+                th = row.find("th", {"scope": "row"})
+                if not th:
+                    continue
+                event_ffn = th.get_text(strip=True)
+                event_code = EVENT_MAP.get(event_ffn)
+                if not event_code:
+                    continue
 
-        # col[0] → event name
-        event_code = _normalise_event(texts[0])
-        if not event_code:
-            continue
+                tds = row.find_all("td")
+                if len(tds) < 5:
+                    continue
 
-        # col[1] → basin text (50m/25m/Grand Bassin/Petit Bassin)
-        current_basin = _basin_from_text(texts[1]) if len(texts) > 1 else "LCM"
+                time_s = _parse_time(tds[0].get_text(strip=True))
+                if not time_s:
+                    continue
 
-        # col[2] → time (first parseable value from col 2 onward)
-        time_raw = None
-        time_seconds = None
-        for t in texts[2:]:
-            parsed = _parse_time(t)
-            if parsed and 10 < parsed < 1200:
-                time_raw = t
-                time_seconds = parsed
-                break
+                pts_text = tds[2].get_text(strip=True).replace("pts", "").strip()
+                fina_points = int(pts_text) if pts_text.isdigit() else 0
 
-        if time_seconds is None:
-            continue
+                lieu_ps = tds[3].find_all("p")
+                lieu = lieu_ps[0].get_text(strip=True) if lieu_ps else tds[3].get_text(strip=True)
 
-        # Date: look for DD/MM/YYYY or YYYY-MM-DD in any cell
-        perf_date = None
-        for t in texts:
-            for fmt in [r"(\d{2})/(\d{2})/(\d{4})", r"(\d{4})-(\d{2})-(\d{2})"]:
-                m = re.search(fmt, t)
-                if m:
-                    try:
-                        g = m.groups()
-                        if len(g[0]) == 4:
-                            perf_date = date(int(g[0]), int(g[1]), int(g[2]))
-                        else:
-                            perf_date = date(int(g[2]), int(g[1]), int(g[0]))
-                    except ValueError:
-                        pass
-                    break
-            if perf_date:
-                break
+                perf_date = _parse_date(tds[4].get_text(strip=True))
+                comp_type = tds[5].get_text(strip=True).strip("[]")
+                club = tds[7].get_text(strip=True) if len(tds) > 7 else ""
 
-        if perf_date and perf_date.year < 2018:
-            continue
-
-        # Meeting name: longest text field
-        meeting_name = max(texts, key=len) if texts else None
-
-        # FINA points: integer in range 100–1200
-        fina_points = None
-        for t in texts:
-            if t.isdigit() and 100 <= int(t) <= 1200:
-                fina_points = int(t)
-
-        # PB: row class or text marker
-        is_pb = bool(
-            set(row.get("class", [])) & {"pb", "record", "perf_pb"}
-        ) or any("PB" in t or "REC" in t for t in texts)
-
-        performances.append(
-            Performance(
-                event_code=event_code,
-                basin_type=current_basin,
-                time_seconds=time_seconds,
-                time_raw=time_raw or "",
-                perf_date=perf_date,
-                meeting_name=meeting_name,
-                fina_points=fina_points,
-                is_pb=is_pb,
-            )
-        )
+                performances.append({
+                    "event":        event_code,
+                    "basin":        basin,
+                    "time_seconds": time_s,
+                    "time_display": tds[0].get_text(strip=True),
+                    "fina_points":  fina_points,
+                    "lieu":         lieu,
+                    "date":         perf_date,
+                    "comp_type":    comp_type,
+                    "club":         club,
+                })
+            except Exception:
+                continue
 
     return performances
 
 
-async def get_national_ranking(event_code: str, season: int, gender: str) -> list[dict]:
+async def fetch_swimmer_perfs(licence: str, basin: str = "LCM") -> list[dict]:
     """
-    Get national ranking for an event.
-    Returns [{rank, licence, name, club, time_seconds}].
+    Fetch all performances for a licence number from FFN Extranat.
+
+    basin:
+      'LCM'  → idbas=50 only
+      'SCM'  → idbas=25 only
+      'ALL'  → both requests merged
     """
-    params = {"idact": "nat", "idsai": str(season)}
-    await asyncio.sleep(REQUEST_DELAY)
+    if basin == "ALL":
+        basins_to_fetch = [("LCM", "50"), ("SCM", "25")]
+    elif basin == "SCM":
+        basins_to_fetch = [("SCM", "25")]
+    else:
+        basins_to_fetch = [("LCM", "50")]
 
-    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=30) as client:
-        resp = await client.get(BASE_URL + "nat_rankings.php", params=params)
-        resp.raise_for_status()
+    results: list[dict] = []
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    ranking = []
+    async with httpx.AsyncClient(headers=HEADERS, timeout=15) as client:
+        for basin_label, idbas in basins_to_fetch:
+            url = f"{BASE_URL}?idact=nat&idrch_id={licence}&idbas={idbas}"
+            try:
+                r = await client.get(url)
+                r.raise_for_status()
+                html = r.content.decode("utf-8", errors="replace")
+                perfs = _parse_tables(html)
+                results.extend(perfs)
+                print(f"[FFN] licence={licence} {basin_label}: {len(perfs)} performances")
+            except Exception as e:
+                print(f"[FFN] fetch failed ({basin_label}): {e}")
 
-    for i, row in enumerate(soup.select("table tr")):
-        cells = row.find_all("td")
-        if len(cells) < 4:
-            continue
-        texts = [c.get_text(strip=True) for c in cells]
-        time_s = _parse_time(texts[-1]) or _parse_time(texts[-2])
-        if time_s:
-            ranking.append({
-                "rank": i,
-                "licence": texts[1] if len(texts) > 1 else None,
-                "name": texts[2] if len(texts) > 2 else None,
-                "club": texts[3] if len(texts) > 3 else None,
-                "time_seconds": time_s,
-            })
+    return results
 
-    return ranking
+
+async def search_swimmer(_nom: str, _prenom: str = "") -> list[dict]:
+    """
+    Stub — swimmer search by name not yet implemented for post-cyberattack Extranat.
+    Users provide their licence number directly.
+    """
+    return []
