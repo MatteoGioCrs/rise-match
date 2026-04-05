@@ -1,5 +1,8 @@
 """
-SwimCloud scraper — httpx only (no Playwright), season 2025-26 (season_id=29).
+SwimCloud scraper — curl_cffi (Chrome TLS impersonation), season 2025-26 (season_id=29).
+
+curl_cffi bypasses Cloudflare at the TLS fingerprint level.
+httpx was replaced because it produces Cloudflare 403 on all SwimCloud requests.
 """
 
 import asyncio
@@ -7,8 +10,8 @@ import re
 from datetime import datetime
 from typing import Optional
 
-import httpx
 from bs4 import BeautifulSoup
+from curl_cffi.requests import AsyncSession
 
 from matching.conversion import display_to_seconds, seconds_to_display
 
@@ -16,10 +19,16 @@ BASE_URL = "https://www.swimcloud.com"
 CURRENT_SEASON_ID = 29
 CURRENT_YEAR = 2026
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml",
+_CF_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Cache-Control": "max-age=0",
 }
 
 YEAR_MAP: dict[str, int] = {
@@ -50,10 +59,39 @@ SWIMCLOUD_EVENT_CODES: dict[str, str] = {
 
 KEY_EVENTS = ["50FR", "100FR", "200FR", "100BA", "100BR", "200BR", "100FL", "200IM", "400IM"]
 
-# Module-level cache
+# Module-level cache: {team_id: {"data": ..., "timestamp": datetime}}
 _cache: dict[int, dict] = {}
 CACHE_TTL_HOURS = 24
 
+# Module-level team database (populated by build_full_team_database)
+_team_db: dict[int, dict] = {}
+
+# ─── Correct division listing URLs (season_id=29) ─────────────────────────────
+DIVISION_URLS: dict[str, str] = {
+    "D1":      f"{BASE_URL}/country/usa/college/division/1/teams/?eventCourse=Y&gender=M&page={{page}}&rankType=D&region=division_1&seasonId=29&sortBy=top50",
+    "D2":      f"{BASE_URL}/country/usa/college/division/2/teams/?eventCourse=Y&gender=M&page={{page}}&rankType=D&region=division_2&seasonId=29&sortBy=top50",
+    "D3":      f"{BASE_URL}/country/usa/college/division/3/teams/?eventCourse=Y&gender=M&page={{page}}&rankType=D&region=division_3&seasonId=29&sortBy=top50",
+    "NAIA":    f"{BASE_URL}/country/usa/college/division/naia/teams/?eventCourse=Y&gender=M&page={{page}}&rankType=D&region=division_4&seasonId=29&sortBy=top50",
+    "NJCAA":   f"{BASE_URL}/country/usa/college/division/njcaa/teams/?eventCourse=Y&gender=M&page={{page}}&rankType=D&region=division_5&seasonId=29&sortBy=top50",
+    "USports": f"{BASE_URL}/country/can/college/division/u-sports/teams/?eventCourse=L&gender=M&page={{page}}&region=division_10&seasonId=29&sortBy=top50",
+}
+
+
+# ─── Core HTTP transport ───────────────────────────────────────────────────────
+
+async def _get_page(url: str) -> str:
+    """
+    Fetch a SwimCloud page bypassing Cloudflare.
+    curl_cffi impersonates Chrome's TLS fingerprint — Cloudflare cannot detect it as a bot.
+    Raises on HTTP error so callers can catch and degrade gracefully.
+    """
+    async with AsyncSession(impersonate="chrome120") as session:
+        r = await session.get(url, headers=_CF_HEADERS, timeout=15)
+        r.raise_for_status()
+        return r.text
+
+
+# ─── Cache helpers ─────────────────────────────────────────────────────────────
 
 def get_cached(team_id: int) -> Optional[dict]:
     if team_id in _cache:
@@ -66,6 +104,8 @@ def get_cached(team_id: int) -> Optional[dict]:
 def _set_cache(team_id: int, data: dict) -> None:
     _cache[team_id] = {"data": data, "timestamp": datetime.now()}
 
+
+# ─── Parsing helpers ───────────────────────────────────────────────────────────
 
 def _parse_time(raw: str) -> Optional[float]:
     raw = raw.strip().replace(",", ".")
@@ -80,30 +120,56 @@ def _parse_time(raw: str) -> Optional[float]:
         return None
 
 
+def _map_sc_event(raw: str) -> Optional[str]:
+    """Map SwimCloud display name to internal event code."""
+    mapping = {
+        "50 Free": "50FR", "100 Free": "100FR", "200 Free": "200FR",
+        "400 Free": "400FR", "500 Free": "500FR", "1000 Free": "1000FR",
+        "1650 Free": "1650FR",
+        "100 Back": "100BA", "200 Back": "200BA",
+        "100 Breast": "100BR", "200 Breast": "200BR",
+        "100 Fly": "100FL", "200 Fly": "200FL",
+        "200 IM": "200IM", "400 IM": "400IM",
+        "50 FR": "50FR", "100 FR": "100FR", "200 FR": "200FR",
+        "100 BA": "100BA", "100 BR": "100BR", "200 BR": "200BR",
+        "100 FL": "100FL",
+    }
+    if raw in mapping:
+        return mapping[raw]
+    m = re.match(r"(\d+)\s*(Free|Back|Breast|Fly|IM|FR|BA|BR|FL)", raw, re.IGNORECASE)
+    if m:
+        dist = m.group(1)
+        stroke_map = {
+            "FREE": "FR", "FR": "FR", "BACK": "BA", "BA": "BA",
+            "BREAST": "BR", "BR": "BR", "FLY": "FL", "FL": "FL", "IM": "IM",
+        }
+        return dist + stroke_map.get(m.group(2).upper(), m.group(2).upper())
+    return None
+
+
+# ─── Roster ────────────────────────────────────────────────────────────────────
+
 async def fetch_roster(team_id: int, gender: str = "M") -> list[dict]:
     """
-    Fetch 2025-26 roster from SwimCloud using httpx.
+    Fetch 2025-26 roster from SwimCloud using curl_cffi (Chrome TLS impersonation).
     Returns list of {name, study_year, is_senior, is_graduate, is_departing, events, best_times}.
     """
     url = (
         f"{BASE_URL}/team/{team_id}/roster/"
         f"?page=1&gender={gender}&season_id={CURRENT_SEASON_ID}&sort=name"
     )
-    await asyncio.sleep(2.0)
 
     try:
-        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
-            resp = await client.get(url)
-            resp.encoding = "utf-8"
-            resp.raise_for_status()
+        html = await _get_page(url)
+        await asyncio.sleep(2)
     except Exception as e:
-        print(f"[SwimCloud] fetch_roster error team={team_id}: {e}")
+        print(f"[SwimCloud] fetch_roster failed team={team_id}: {e}")
         return []
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
     athletes: list[dict] = []
 
-    # Try several known card selectors
+    # Strategy 1: card-based layout
     cards = (
         soup.select(".c-roster-athlete") or
         soup.select(".roster-athlete") or
@@ -112,8 +178,9 @@ async def fetch_roster(team_id: int, gender: str = "M") -> list[dict]:
         []
     )
 
-    # Fallback: parse table rows if no cards found
+    # Strategy 2: table rows fallback
     if not cards:
+        print(f"[SwimCloud] No cards found for team={team_id}, trying table rows. HTML len={len(html)}")
         for row in soup.select("table tbody tr"):
             cells = row.find_all("td")
             if len(cells) < 2:
@@ -122,7 +189,7 @@ async def fetch_roster(team_id: int, gender: str = "M") -> list[dict]:
             if not name:
                 continue
             year_text = cells[1].get_text(strip=True) if len(cells) > 1 else ""
-            study_year = YEAR_MAP.get(year_text.upper().strip(), None)
+            study_year = YEAR_MAP.get(year_text.strip().upper()) or YEAR_MAP.get(year_text.strip())
             athletes.append({
                 "name": name,
                 "study_year": study_year,
@@ -132,6 +199,7 @@ async def fetch_roster(team_id: int, gender: str = "M") -> list[dict]:
                 "events": [],
                 "best_times": {},
             })
+        print(f"[SwimCloud] Roster team={team_id}: {len(athletes)} athletes (table fallback)")
         return athletes
 
     for card in cards:
@@ -142,36 +210,29 @@ async def fetch_roster(team_id: int, gender: str = "M") -> list[dict]:
         if not name:
             continue
 
-        # Year badge
         year_el = card.select_one(
             ".c-roster-athlete__year, .athlete-year, .year-badge, [class*='year']"
         )
         year_text = year_el.get_text(strip=True) if year_el else ""
-        # Also scan all text for FR/SO/JR/SR/GR
         if not year_text:
             for t in card.stripped_strings:
                 if t.upper() in YEAR_MAP:
                     year_text = t
                     break
-        study_year = YEAR_MAP.get(year_text.strip().upper(), YEAR_MAP.get(year_text.strip(), None))
+        study_year = YEAR_MAP.get(year_text.strip().upper()) or YEAR_MAP.get(year_text.strip())
 
-        # Events from badges
         events: list[str] = []
         for badge in card.select(".event-badge, .c-event-badge, .badge, [class*='event']"):
-            ev_raw = badge.get_text(strip=True)
-            code = _map_sc_event(ev_raw)
+            code = _map_sc_event(badge.get_text(strip=True))
             if code and code not in events:
                 events.append(code)
 
-        # Best times from table rows
         best_times: dict[str, float] = {}
         for row in card.select("tr, .time-row, .c-time-row"):
             cells = row.find_all("td")
             if len(cells) >= 2:
-                ev_raw = cells[0].get_text(strip=True)
-                t_raw = cells[1].get_text(strip=True)
-                code = _map_sc_event(ev_raw)
-                t = _parse_time(t_raw)
+                code = _map_sc_event(cells[0].get_text(strip=True))
+                t = _parse_time(cells[1].get_text(strip=True))
                 if code and t and 10 < t < 1500:
                     best_times[code] = t
 
@@ -185,13 +246,16 @@ async def fetch_roster(team_id: int, gender: str = "M") -> list[dict]:
             "best_times": best_times,
         })
 
+    print(f"[SwimCloud] Roster team={team_id}: {len(athletes)} athletes")
     return athletes
 
+
+# ─── Best times ────────────────────────────────────────────────────────────────
 
 async def fetch_team_best_times(team_id: int, event_code: str, gender: str = "M") -> list[dict]:
     """
     Fetch best times for a team in one event this season (SCY).
-    Returns list sorted ascending (fastest first): [{name, time_seconds, time_display, rank}]
+    Returns list sorted ascending: [{name, time_seconds, time_display, rank}].
     """
     sc_code = SWIMCLOUD_EVENT_CODES.get(event_code)
     if not sc_code:
@@ -210,18 +274,15 @@ async def fetch_team_best_times(team_id: int, event_code: str, gender: str = "M"
         f"&team_id={team_id}"
         f"&year={CURRENT_YEAR}"
     )
-    await asyncio.sleep(1.5)
 
     try:
-        async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
-            resp = await client.get(url)
-            resp.encoding = "utf-8"
-            resp.raise_for_status()
+        html = await _get_page(url)
+        await asyncio.sleep(2)
     except Exception as e:
-        print(f"[SwimCloud] fetch_team_best_times error team={team_id} event={event_code}: {e}")
+        print(f"[SwimCloud] fetch_team_best_times failed team={team_id} event={event_code}: {e}")
         return []
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
     results: list[dict] = []
 
     for row in soup.select("table tbody tr"):
@@ -230,7 +291,6 @@ async def fetch_team_best_times(team_id: int, event_code: str, gender: str = "M"
             continue
         texts = [c.get_text(strip=True) for c in cells]
 
-        # Find time: first cell that parses as a valid swimming time
         time_s = None
         for t in texts:
             parsed = _parse_time(t)
@@ -240,9 +300,7 @@ async def fetch_team_best_times(team_id: int, event_code: str, gender: str = "M"
         if time_s is None:
             continue
 
-        # Name: longest non-time text
         name = max((t for t in texts if not _parse_time(t) and len(t) > 2), key=len, default="")
-
         results.append({
             "name": name,
             "time_seconds": time_s,
@@ -254,23 +312,24 @@ async def fetch_team_best_times(team_id: int, event_code: str, gender: str = "M"
     for i, r in enumerate(results):
         r["rank"] = i + 1
 
+    print(f"[SwimCloud] Times team={team_id} {event_code}: {len(results)} entries")
     return results
 
+
+# ─── Snapshot ─────────────────────────────────────────────────────────────────
 
 async def fetch_university_snapshot(team_id: int, gender: str = "M") -> dict:
     """
     Full university data snapshot for the matching algorithm.
-    Tries live SwimCloud data; returns structured dict with roster + best times.
+    Fetches roster + best times; caches for 24h.
     """
     cached = get_cached(team_id)
     if cached:
         return cached
 
-    # 1. Fetch roster
     roster = await fetch_roster(team_id, gender)
     departing = [a for a in roster if a.get("is_departing")]
 
-    # 2. Fetch best times for key events
     best_times: dict[str, dict] = {}
     team_top8: dict[str, float] = {}
 
@@ -278,20 +337,17 @@ async def fetch_university_snapshot(team_id: int, gender: str = "M") -> dict:
         times_list = await fetch_team_best_times(team_id, event, gender)
         if times_list:
             best_times[event] = times_list[0]
-            # 8th place = conference scoring cutoff estimate
             if len(times_list) >= 8:
                 team_top8[event] = times_list[7]["time_seconds"]
-            elif times_list:
+            else:
                 team_top8[event] = times_list[-1]["time_seconds"]
 
-    # 3. Identify events where departing athletes hold the top spot
     departing_names = {a["name"] for a in departing}
     departing_events: list[str] = []
     for ev, bt in best_times.items():
         if bt.get("name") in departing_names:
             departing_events.append(ev)
 
-    # Enrich departing athletes with their best events
     for a in departing:
         a_events: list[str] = list(a.get("events", []))
         for ev, bt in best_times.items():
@@ -313,73 +369,7 @@ async def fetch_university_snapshot(team_id: int, gender: str = "M") -> dict:
     return snapshot
 
 
-def _map_sc_event(raw: str) -> Optional[str]:
-    """Map SwimCloud display name or common abbreviation to internal event code."""
-    mapping = {
-        "50 Free": "50FR", "100 Free": "100FR", "200 Free": "200FR",
-        "400 Free": "400FR", "500 Free": "500FR", "1000 Free": "1000FR",
-        "1650 Free": "1650FR",
-        "100 Back": "100BA", "200 Back": "200BA",
-        "100 Breast": "100BR", "200 Breast": "200BR",
-        "100 Fly": "100FL", "200 Fly": "200FL",
-        "200 IM": "200IM", "400 IM": "400IM",
-        "50 FR": "50FR", "100 FR": "100FR", "200 FR": "200FR",
-        "100 BA": "100BA", "100 BR": "100BR", "200 BR": "200BR",
-        "100 FL": "100FL", "200 IM": "200IM",
-    }
-    if raw in mapping:
-        return mapping[raw]
-    # Try regex pattern like "100 Breast" or "100BR"
-    m = re.match(r"(\d+)\s*(Free|Back|Breast|Fly|IM|FR|BA|BR|FL)", raw, re.IGNORECASE)
-    if m:
-        dist = m.group(1)
-        stroke_raw = m.group(2).upper()
-        stroke_map = {
-            "FREE": "FR", "FR": "FR",
-            "BACK": "BA", "BA": "BA",
-            "BREAST": "BR", "BR": "BR",
-            "FLY": "FL", "FL": "FL",
-            "IM": "IM",
-        }
-        stroke = stroke_map.get(stroke_raw, stroke_raw)
-        return dist + stroke
-    return None
-
-
-# Keep old name for backward compat
-async def fetch_conference_results(team_id: int, season: str = "2025-2026") -> list[dict]:
-    """Fetch conference results — delegates to fetch_university_snapshot."""
-    snap = await fetch_university_snapshot(team_id)
-    results = []
-    for ev, cutoff in snap.get("team_top8_times", {}).items():
-        best = snap.get("best_times", {}).get(ev, {})
-        results.append({
-            "event_code": ev,
-            "gender": "M",
-            "winning_time": best.get("time_seconds"),
-            "cutoff_time": cutoff,
-        })
-    return results
-
-
-# ─── Division team listing ────────────────────────────────────────────────────
-# SwimCloud uses ?page= and ?division= or ?conference_id= query params.
-# These URL templates are best-effort and may need adjustment if SwimCloud
-# updates its routing.  The scraper degrades gracefully on parse failures.
-
-DIVISION_URLS: dict[str, str] = {
-    "D1":      f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NCAA_D1",
-    "D2":      f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NCAA_D2",
-    "D3":      f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NCAA_D3",
-    "NAIA":    f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NAIA",
-    "NJCAA":   f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=NJCAA",
-    "USports": f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=USports",
-    "ACAC":    f"{BASE_URL}/teams/?page={{page}}&gender={{gender}}&division=ACAC",
-}
-
-# Shared in-memory team database (populated by build_full_team_database)
-_team_db: dict[int, dict] = {}  # {team_id: {name, division, country, ...}}
-
+# ─── Division scraping ─────────────────────────────────────────────────────────
 
 async def scrape_division_teams(
     division: str,
@@ -388,9 +378,7 @@ async def scrape_division_teams(
 ) -> list[dict]:
     """
     Scrape team listing for one division from SwimCloud.
-
     Returns list of {team_id, name, division, country}.
-    Returns empty list if the division URL is unreachable or produces no results.
     """
     url_template = DIVISION_URLS.get(division)
     if not url_template:
@@ -399,42 +387,37 @@ async def scrape_division_teams(
     teams: list[dict] = []
     seen_ids: set[int] = set()
 
-    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=20) as client:
-        for page in range(1, max_pages + 1):
-            url = url_template.format(page=page, gender=gender)
-            await asyncio.sleep(1.5)
-            try:
-                resp = await client.get(url)
-                resp.encoding = "utf-8"
-                resp.raise_for_status()
-            except Exception as e:
-                print(f"[SwimCloud] scrape_division_teams {division} page={page}: {e}")
-                break
+    for page in range(1, max_pages + 1):
+        url = url_template.format(page=page)
+        try:
+            html = await _get_page(url)
+            await asyncio.sleep(2)
+        except Exception as e:
+            print(f"[SwimCloud] scrape_division_teams {division} page={page}: {e}")
+            break
 
-            soup = BeautifulSoup(resp.text, "html.parser")
+        soup = BeautifulSoup(html, "html.parser")
+        page_teams = []
 
-            # Extract team links: /team/{id}/ patterns
-            page_teams = []
-            for a in soup.find_all("a", href=re.compile(r"/team/(\d+)/")):
-                m = re.search(r"/team/(\d+)/", a["href"])
-                if not m:
-                    continue
-                tid = int(m.group(1))
-                if tid in seen_ids:
-                    continue
-                seen_ids.add(tid)
-                name = a.get_text(strip=True) or f"Team {tid}"
-                page_teams.append({
-                    "team_id": tid,
-                    "name": name,
-                    "division": division,
-                    "country": "CAN" if division in ("USports", "ACAC") else "USA",
-                })
+        for a in soup.find_all("a", href=re.compile(r"/team/(\d+)/")):
+            m = re.search(r"/team/(\d+)/", a["href"])
+            if not m:
+                continue
+            tid = int(m.group(1))
+            if tid in seen_ids:
+                continue
+            seen_ids.add(tid)
+            name = a.get_text(strip=True) or f"Team {tid}"
+            page_teams.append({
+                "team_id": tid,
+                "name": name,
+                "division": division,
+                "country": "CAN" if division in ("USports", "ACAC") else "USA",
+            })
 
-            if not page_teams:
-                break  # no more results
-
-            teams.extend(page_teams)
+        if not page_teams:
+            break
+        teams.extend(page_teams)
 
     return teams
 
@@ -446,15 +429,7 @@ async def build_full_team_database(
 ) -> dict[int, dict]:
     """
     Build a complete {team_id: info} dict by scraping all division pages.
-
-    Results are stored in the module-level _team_db cache.
-    Returns the populated dict.
-
-    Parameters
-    ----------
-    gender : str   "M" or "F"
-    divisions : list[str] | None  Subset of divisions to scrape (default: all)
-    max_pages_per_division : int  Stop after this many pages per division
+    Stores results in module-level _team_db cache.
     """
     global _team_db
     target_divisions = divisions or list(DIVISION_URLS.keys())
@@ -470,5 +445,20 @@ async def build_full_team_database(
 
 
 def get_team_database() -> dict[int, dict]:
-    """Return the current in-memory team database."""
     return dict(_team_db)
+
+
+# ─── Backwards compat ─────────────────────────────────────────────────────────
+
+async def fetch_conference_results(team_id: int, season: str = "2025-2026") -> list[dict]:
+    snap = await fetch_university_snapshot(team_id)
+    results = []
+    for ev, cutoff in snap.get("team_top8_times", {}).items():
+        best = snap.get("best_times", {}).get(ev, {})
+        results.append({
+            "event_code": ev,
+            "gender": "M",
+            "winning_time": best.get("time_seconds"),
+            "cutoff_time": cutoff,
+        })
+    return results
