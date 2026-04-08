@@ -1,21 +1,18 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from config import settings
-from database import init_db, close_db
-from routers import match
+import asyncpg
+import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
     yield
-    await close_db()
 
 app = FastAPI(title="RISE.MATCH API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,8 +24,6 @@ async def health():
 
 @app.get("/api/debug/db")
 async def debug_db():
-    """Vérifie que les tables SwimCloud sont remplies."""
-    import asyncpg, os
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     teams = await conn.fetchval("SELECT COUNT(*) FROM sc_teams")
     swimmers = await conn.fetchval("SELECT COUNT(*) FROM sc_swimmers")
@@ -41,5 +36,3 @@ async def debug_db():
         "sc_times": times,
         "last_worker_run": str(freshness["last_updated"]) if freshness else "jamais",
     }
-
-app.include_router(match.router)
