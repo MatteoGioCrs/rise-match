@@ -4,15 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db, close_db
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     yield
     await close_db()
 
-
-app = FastAPI(title="RISE.MATCH API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="RISE.MATCH API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,39 +20,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "0.2.0"}
 
-
-@app.get("/api/ffn/debug/{licence}")
-async def debug_ffn(licence: str):
-    import httpx
-    from bs4 import BeautifulSoup
-
-    url = f"https://ffn.extranat.fr/webffn/nat_recherche.php?idact=nat&idrch_id={licence}&idbas=50"
-    async with httpx.AsyncClient(timeout=15, headers={
-        "User-Agent": "Mozilla/5.0",
-        "Accept-Language": "fr-FR,fr;q=0.9",
-    }) as client:
-        r = await client.get(url)
-        html = r.content.decode("utf-8", errors="replace")
-
-    soup = BeautifulSoup(html, "html.parser")
-    all_tables = soup.find_all("table")
+@app.get("/api/debug/db")
+async def debug_db():
+    """Vérifie que les tables SwimCloud sont remplies."""
+    import asyncpg, os
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    teams = await conn.fetchval("SELECT COUNT(*) FROM sc_teams")
+    swimmers = await conn.fetchval("SELECT COUNT(*) FROM sc_swimmers")
+    times = await conn.fetchval("SELECT COUNT(*) FROM sc_times")
+    freshness = await conn.fetchrow("SELECT * FROM data_freshness WHERE source='swimcloud'")
+    await conn.close()
     return {
-        "total_tables": len(all_tables),
-        "table_classes": [" ".join(t.get("class", [])) for t in all_tables],
-        "table_headers": [
-            t.find("thead").get_text(strip=True)[:200] if t.find("thead") else "no thead"
-            for t in all_tables
-        ],
-        "html_slice_5000_6000": html[5000:6000],
+        "sc_teams": teams,
+        "sc_swimmers": swimmers,
+        "sc_times": times,
+        "last_worker_run": str(freshness["last_updated"]) if freshness else "jamais",
     }
 
-
-@app.get("/api/ffn/{licence}")
-async def get_ffn(licence: str):
-    from scrapers.ffn import fetch_perfs
-    return await fetch_perfs(licence)
+@app.post("/api/match")
+async def compute_match(body: dict):
+    """
+    Input : times LCM/SCM saisis manuellement par le nageur.
+    Output : liste d'universités matchées avec scores.
+    À implémenter après validation du worker.
+    """
+    return {"status": "not_implemented_yet", "received": body}

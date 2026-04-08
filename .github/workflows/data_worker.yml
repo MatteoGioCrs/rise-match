@@ -1,0 +1,17 @@
+name: RISE.MATCH Data Worker
+on:
+  schedule:
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx asyncpg
+      - run: python backend/worker/data_worker.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
