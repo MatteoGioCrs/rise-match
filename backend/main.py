@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import init_db, close_db
+from routers import match
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,11 +42,4 @@ async def debug_db():
         "last_worker_run": str(freshness["last_updated"]) if freshness else "jamais",
     }
 
-@app.post("/api/match")
-async def compute_match(body: dict):
-    """
-    Input : times LCM/SCM saisis manuellement par le nageur.
-    Output : liste d'universités matchées avec scores.
-    À implémenter après validation du worker.
-    """
-    return {"status": "not_implemented_yet", "received": body}
+app.include_router(match.router)
