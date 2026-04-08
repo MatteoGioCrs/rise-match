@@ -1,7 +1,8 @@
-node_modules/ 
-__pycache__/ 
-.env 
-*.pyc 
-.next/ 
-venv/ 
+node_modules/
+__pycache__/
+.env
+*.pyc
+.next/
+venv/
 .next
+backend/worker/scraped_data.json
