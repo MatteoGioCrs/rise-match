@@ -11,9 +11,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="RISE.MATCH API", version="0.2.0", lifespan=lifespan)
 
+# 1. Définir la liste des origines (frontends) autorisées
+origins = [
+    "https://rise-match-gtqb.vercel.app",  # Ta Vitrine sur Vercel (Production)
+    "http://localhost:3000",               # Ta Vitrine en local (Développement)
+]
+
+# 2. Ajouter le middleware avec les origines spécifiques
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,       # On remplace le joker ["*"] par ta liste
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
