@@ -1,27 +1,12 @@
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import asyncpg
-import os
 from routers.match import router as match_router
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    yield
+app = FastAPI()
 
-app = FastAPI(title="RISE.MATCH API", version="0.2.0", lifespan=lifespan)
-
-# 1. Définir la liste des origines (frontends) autorisées
-origins = [
-    "https://rise-match-gtqb.vercel.app",  # Ta Vitrine sur Vercel (Production)
-    "http://localhost:3000",               # Ta Vitrine en local (Développement)
-]
-
-# 2. Ajouter le middleware avec les origines spécifiques
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # On remplace le joker ["*"] par ta liste
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -30,22 +15,23 @@ app.include_router(match_router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok"}
 
 @app.get("/api/debug/db")
 async def debug_db():
+    import asyncpg, os
     try:
         conn = await asyncpg.connect(os.environ["DATABASE_URL"])
         teams = await conn.fetchval("SELECT COUNT(*) FROM sc_teams")
         swimmers = await conn.fetchval("SELECT COUNT(*) FROM sc_swimmers")
         times = await conn.fetchval("SELECT COUNT(*) FROM sc_times")
-        freshness = await conn.fetchrow("SELECT * FROM data_freshness WHERE source='swimcloud'")
+        last = await conn.fetchval("SELECT MAX(updated_at) FROM data_freshness")
         await conn.close()
         return {
             "sc_teams": teams,
             "sc_swimmers": swimmers,
             "sc_times": times,
-            "last_worker_run": str(freshness["last_updated"]) if freshness else "jamais",
+            "last_worker_run": str(last)
         }
     except Exception as e:
         return {"error": str(e)}
