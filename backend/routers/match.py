@@ -1,140 +1,92 @@
-import os
-import asyncpg
 from fastapi import APIRouter
-from algo.conversion import convert_to_scy, display_to_seconds
+import asyncpg
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from algo.conversion import convert_to_scy
 
 router = APIRouter()
 
-
 @router.post("/api/match")
 async def compute_match(body: dict):
-    """
-    Input:
-    {
-        "times": [
-            {"event": "100BR", "basin": "LCM", "time": "1:02.41"},
-            {"event": "200BR", "basin": "LCM", "time": "2:18.50"}
-        ],
-        "gender": "M",
-        "divisions": ["division_1", "division_2", "division_3", "division_4"]
-    }
-
-    Logique:
-    1. Convertir les temps LCM/SCM → SCY
-    2. Pour chaque équipe (filtrée par divisions) :
-       - Récupérer les 8 meilleurs temps de l'équipe par épreuve
-       - Compter combien d'épreuves le nageur scorerait dans le top 8
-    3. Retourner le top 10 trié par score décroissant
-    """
     times_input = body.get("times", [])
     gender = body.get("gender", "M")
     divisions = body.get("divisions", ["division_1", "division_2", "division_3", "division_4"])
 
-    if not times_input:
-        return {"error": "Aucun temps fourni", "results": []}
+    # 1. Convertir les temps en SCY
+    scy_times = {}
+    for t in times_input:
+        try:
+            result = convert_to_scy(t["event"], t["basin"], float(t["time_seconds"]))
+            scy_times[t["event"]] = result["scy_seconds"]
+        except Exception as e:
+            pass
 
-    # Étape 1 — Convertir les temps du nageur en SCY
-    swimmer_scy: dict[str, float] = {}
-    conversions: list[dict] = []
-    for entry in times_input:
-        event = entry.get("event", "").upper()
-        basin = entry.get("basin", "LCM").upper()
-        time_str = entry.get("time", "")
-        if not event or not time_str:
-            continue
-        time_s = display_to_seconds(time_str)
-        result = convert_to_scy(event, basin, time_s)
-        swimmer_scy[event] = result["scy_seconds"]
-        conversions.append({
-            "event": event,
-            "input": time_str,
-            "basin": basin,
-            "scy_seconds": result["scy_seconds"],
-            "scy_display": result["scy_display"],
-            "confidence": result["confidence"],
-            "note": result["note"],
-        })
+    if not scy_times:
+        return {"error": "Aucun temps valide fourni", "matches": []}
 
-    if not swimmer_scy:
-        return {"error": "Temps invalides", "results": []}
-
-    swimmer_events = list(swimmer_scy.keys())
-
-    # Étape 2 — Interroger la DB
+    # 2. Requête DB
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    div_filter = ",".join(f"'{d}'" for d in divisions)
 
-    # Récupérer toutes les équipes dans les divisions demandées
-    division_placeholders = ", ".join(f"${i+1}" for i in range(len(divisions)))
-    teams = await conn.fetch(
-        f"SELECT swimcloud_id, name, abbr, city, state, division FROM sc_teams WHERE division = ANY(ARRAY[{division_placeholders}]::text[])",
-        *divisions,
-    )
-
-    scores = []
-    for team in teams:
-        team_id = team["swimcloud_id"]
-        scoring_events = []
-
-        for event in swimmer_events:
-            swimmer_time = swimmer_scy[event]
-
-            # Top 8 de l'équipe pour cet événement (gender filtré)
-            top8 = await conn.fetch(
-                """
-                SELECT t.time_seconds
-                FROM sc_times t
-                JOIN sc_swimmers s ON s.swimcloud_id = t.swimmer_swimcloud_id
-                WHERE s.team_swimcloud_id = $1
-                  AND t.event_code = $2
-                  AND s.gender = $3
-                ORDER BY t.time_seconds ASC
-                LIMIT 8
-                """,
-                team_id, event, gender,
-            )
-
-            if not top8:
-                continue
-
-            worst_top8 = top8[-1]["time_seconds"]
-            rank_in_team = None
-            for i, row in enumerate(top8):
-                if swimmer_time <= row["time_seconds"]:
-                    rank_in_team = i + 1
-                    break
-            if rank_in_team is None and swimmer_time <= worst_top8:
-                rank_in_team = len(top8) + 1
-
-            if rank_in_team is not None and rank_in_team <= 8:
-                scoring_events.append({
-                    "event": event,
-                    "rank_in_team": rank_in_team,
-                    "swimmer_scy": swimmer_time,
-                    "team_8th_time": round(worst_top8, 2),
-                })
-
-        if scoring_events:
-            score = sum(9 - e["rank_in_team"] for e in scoring_events)
-            scores.append({
-                "team_id": team_id,
-                "name": team["name"],
-                "abbr": team["abbr"],
-                "city": team["city"],
-                "state": team["state"],
-                "division": team["division"],
-                "score": score,
-                "scoring_events": scoring_events,
-            })
+    rows = await conn.fetch(f"""
+        SELECT
+            t.swimcloud_id,
+            t.name,
+            t.division,
+            t.state,
+            t.city,
+            s.event_code,
+            MIN(s.time_seconds) as best_time
+        FROM sc_teams t
+        JOIN sc_swimmers sw ON sw.team_swimcloud_id = t.swimcloud_id
+        JOIN sc_times s ON s.swimmer_swimcloud_id = sw.swimcloud_id
+        WHERE t.division IN ({div_filter})
+        AND sw.gender = $1
+        AND sw.is_departing = false
+        GROUP BY t.swimcloud_id, t.name, t.division, t.state, t.city, s.event_code
+    """, gender)
 
     await conn.close()
 
-    # Étape 3 — Top 10
-    scores.sort(key=lambda x: x["score"], reverse=True)
-    top10 = scores[:10]
+    # 3. Calculer score par université
+    scores = {}
+    for row in rows:
+        tid = row["swimcloud_id"]
+        event = row["event_code"]
 
+        if event not in scy_times:
+            continue
+
+        if tid not in scores:
+            scores[tid] = {
+                "team_id": tid,
+                "name": row["name"],
+                "division": row["division"],
+                "state": row["state"],
+                "city": row["city"],
+                "score": 0,
+                "events": {}
+            }
+
+        athlete_scy = scy_times[event]
+        team_best = row["best_time"]
+
+        # Score : le nageur est dans les 5% du meilleur temps de l'équipe
+        ratio = athlete_scy / team_best if team_best > 0 else 999
+        if ratio <= 1.05:
+            scores[tid]["score"] += 1
+
+        scores[tid]["events"][event] = {
+            "athlete_scy": round(athlete_scy, 2),
+            "team_best_scy": round(team_best, 2),
+            "ratio": round(ratio, 3)
+        }
+
+    # 4. Trier et retourner top 20
+    results = sorted(scores.values(), key=lambda x: x["score"], reverse=True)
     return {
-        "swimmer_conversions": conversions,
-        "results": top10,
-        "total_teams_evaluated": len(teams),
-        "teams_with_fit": len(scores),
+        "scy_times": {k: round(v, 2) for k, v in scy_times.items()},
+        "matches": results[:20]
     }
