@@ -67,8 +67,8 @@ interface TimeEntry {
 }
 
 interface EventMatch {
-  athlete_scy: number
-  team_best_scy: number
+  athlete_time: number
+  team_best: number
   ratio: number
 }
 
@@ -246,7 +246,7 @@ export default function Page() {
                       className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
                       style={{ backgroundColor: "#1a2236", color: "#2E75B6" }}
                     >
-                      {match.score} épreuve{match.score > 1 ? "s" : ""} matchée{match.score > 1 ? "s" : ""}
+                      {match.score} pt{match.score > 1 ? "s" : ""}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -275,7 +275,7 @@ export default function Page() {
                           <div key={event} className="flex items-center gap-2 text-xs">
                             <span className="font-mono text-gray-300 w-14 shrink-0">{event}</span>
                             <span className="text-gray-400">
-                              {formatScy(ev.athlete_scy)}s <span className="text-gray-600">vs</span> {formatScy(ev.team_best_scy)}s
+                              {formatScy(ev.athlete_time)}s <span className="text-gray-600">vs</span> {formatScy(ev.team_best)}s
                             </span>
                             <span className="font-semibold" style={{ color }}>
                               {faster ? "-" : "+"}{Math.abs(parseFloat(pct))}%
