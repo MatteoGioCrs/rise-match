@@ -6,3 +6,5 @@ __pycache__/
 venv/
 .next
 backend/worker/scraped_data.json
+Most-Recent-Cohorts-Institution.csv
+backend/worker/Most-Recent-Cohorts-Institution.csv
