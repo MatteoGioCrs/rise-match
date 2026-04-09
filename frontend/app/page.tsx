@@ -19,12 +19,29 @@ const BASINS = [
 ]
 
 const DIVISIONS_UI = [
-  { label: "NCAA D1", api: "division_1" },
-  { label: "NCAA D2", api: "division_2" },
-  { label: "NCAA D3", api: "division_3" },
-  { label: "NAIA",    api: "division_4" },
-  { label: "NJCAA",   api: "division_5" },
+  { label: "NCAA D1",     api: "division_1"  },
+  { label: "NCAA D2",     api: "division_2"  },
+  { label: "NCAA D3",     api: "division_3"  },
+  { label: "NAIA",        api: "division_4"  },
+  { label: "NJCAA",       api: "division_5"  },
+  { label: "USports 🇨🇦", api: "division_10" },
 ]
+
+function divisionBadge(api: string): { label: string; bg: string; color: string } {
+  switch (api) {
+    case "division_1":  return { label: "NCAA D1",     bg: "#1a2f50", color: "#60a5fa" }
+    case "division_2":  return { label: "NCAA D2",     bg: "#1a2f50", color: "#60a5fa" }
+    case "division_3":  return { label: "NCAA D3",     bg: "#1a2f50", color: "#60a5fa" }
+    case "division_4":  return { label: "NAIA",        bg: "#1a3020", color: "#4ade80" }
+    case "division_5":  return { label: "NJCAA",       bg: "#2d1e0f", color: "#fb923c" }
+    case "division_10": return { label: "🇨🇦 Canada", bg: "#2d1515", color: "#f87171" }
+    default:            return { label: api,            bg: "#1a2236", color: "#94a3b8" }
+  }
+}
+
+function countryFlag(api: string): string {
+  return api === "division_10" ? "🇨🇦 " : "🇺🇸 "
+}
 
 interface TimeEntry {
   id: number
@@ -205,7 +222,9 @@ export default function Page() {
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <h2 className="text-lg font-bold text-white leading-tight">{match.name}</h2>
+                    <h2 className="text-lg font-bold text-white leading-tight">
+                      {countryFlag(match.division)}{match.name}
+                    </h2>
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
                       style={{ backgroundColor: "#1a2236", color: "#2E75B6" }}
@@ -213,9 +232,19 @@ export default function Page() {
                       {match.score} épreuve{match.score > 1 ? "s" : ""} matchée{match.score > 1 ? "s" : ""}
                     </span>
                   </div>
-                  <p className="text-gray-500 text-xs mt-0.5">
-                    {divisionLabel(match.division)}{match.state ? ` · ${match.state}` : ""}{match.city ? ` · ${match.city}` : ""}
-                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {(() => {
+                      const b = divisionBadge(match.division)
+                      return (
+                        <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: b.bg, color: b.color }}>
+                          {b.label}
+                        </span>
+                      )
+                    })()}
+                    <span className="text-gray-500 text-xs">
+                      {match.state ? `${match.state}` : ""}{match.city ? ` · ${match.city}` : ""}
+                    </span>
+                  </div>
 
                   {Object.entries(match.events).length > 0 && (
                     <div className="mt-3 flex flex-col gap-1.5">
@@ -356,6 +385,12 @@ export default function Page() {
           >
             <span className="text-base leading-none">+</span> Ajouter une épreuve
           </button>
+        )}
+
+        {selectedDivisions.includes("division_10") && (
+          <p className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: "#2d1515", color: "#f87171", border: "1px solid #5c2020" }}>
+            🇨🇦 <strong>USports Canada :</strong> utilise <strong>400FR / 800FR / 1500FR</strong> au lieu de 500FR / 1000FR / 1650FR
+          </p>
         )}
       </div>
 

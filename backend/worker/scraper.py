@@ -53,6 +53,28 @@ USPORTS_EVENTS = {
 
 STROKE_MAP = {'1': 'FR', '2': 'BA', '3': 'BR', '4': 'FL', '5': 'IM'}
 
+# Mapping code brut → code de stockage pour USports (suffixe _LCM sur les distances longues)
+USPORTS_EVENT_CODES = {
+    '50FR':   '50FR',
+    '100FR':  '100FR',
+    '200FR':  '200FR',
+    '400FR':  '400FR_LCM',
+    '800FR':  '800FR_LCM',
+    '1500FR': '1500FR_LCM',
+    '50BA':   '50BA',
+    '100BA':  '100BA',
+    '200BA':  '200BA',
+    '50BR':   '50BR',
+    '100BR':  '100BR',
+    '200BR':  '200BR',
+    '50FL':   '50FL',
+    '100FL':  '100FL',
+    '200FL':  '200FL',
+    '100IM':  '100IM',
+    '200IM':  '200IM',
+    '400IM':  '400IM',
+}
+
 DIVISIONS_NCAA = [
     'division_1',   # NCAA D1
     'division_2',   # NCAA D2
@@ -98,7 +120,7 @@ async def fetch_top_times(
     return r.json()
 
 
-def process_results(results, teams, swimmers, division, gender):
+def process_results(results, teams, swimmers, division, gender, event_code_override=None):
     """Extraire équipes et nageurs depuis les résultats API."""
     for splash in results:
         tid = splash['team_id']
@@ -128,11 +150,13 @@ def process_results(results, teams, swimmers, division, gender):
             }
 
         ec = get_event_code(splash['eventdistance'], splash['eventstroke'])
+        if ec and event_code_override:
+            ec = event_code_override.get(ec, ec)
         if ec and ec not in swimmers[sid]['times']:
             swimmers[sid]['times'][ec] = splash['eventtime']
 
 
-async def scrape_division(session, division, events_map, eventcourse, sleep_time, teams, swimmers):
+async def scrape_division(session, division, events_map, eventcourse, sleep_time, teams, swimmers, event_code_override=None):
     """Scraper une division complète."""
     for gender in GENDERS:
         for event_code, api_code in events_map.items():
@@ -146,7 +170,7 @@ async def scrape_division(session, division, events_map, eventcourse, sleep_time
                     results = data.get('results', [])
                     page_count = data.get('page_count', 1)
 
-                    process_results(results, teams, swimmers, division, gender)
+                    process_results(results, teams, swimmers, division, gender, event_code_override)
 
                     print(f"  {division} {gender} {event_code} p{page}/{page_count} → {len(results)}")
 
@@ -188,7 +212,8 @@ async def main():
             events_map=USPORTS_EVENTS,
             eventcourse='L',
             sleep_time=8.0,
-            teams=teams, swimmers=swimmers
+            teams=teams, swimmers=swimmers,
+            event_code_override=USPORTS_EVENT_CODES,
         )
 
     with open('backend/worker/scraped_data.json', 'w') as f:
