@@ -37,6 +37,32 @@ def safe_int(val):
     except:
         return None
 
+MANUAL_OVERRIDES = {
+    # swimcloud_name: scorecard_name_exact
+    'Georgia Institute of Technology': 'Georgia Institute of Technology',
+    'Purdue University': 'Purdue University-Main Campus',
+    'Louisiana State University': 'Louisiana State University and Agricultural & Mechanical College',
+    'Ohio State University': 'Ohio State University-Main Campus',
+    'Colorado State University': 'Colorado State University-Fort Collins',
+    'Columbia University': 'Columbia University in the City of New York',
+    'Virginia Tech': 'Virginia Polytechnic Institute and State University',
+    'UCLA': 'University of California-Los Angeles',
+    'University of Minnesota': 'University of Minnesota-Twin Cities',
+    'University of Illinois': 'University of Illinois Urbana-Champaign',
+    'University of Texas': 'The University of Texas at Austin',
+    'University of Michigan': 'University of Michigan-Ann Arbor',
+    'University of Hawaii': 'University of Hawaii at Manoa',
+    'Rutgers University': 'Rutgers University-New Brunswick',
+    'Fresno State': 'California State University-Fresno',
+    'UMBC': 'University of Maryland Baltimore County',
+    'University of South Carolina': 'University of South Carolina-Columbia',
+    'University of Tennessee': 'University of Tennessee-Knoxville',
+    'Arizona State University': 'Arizona State University Campus Immersion',
+    'Bowling Green State University': 'Bowling Green State University-Main Campus',
+    'University of Pittsburgh': 'University of Pittsburgh-Pittsburgh Campus',
+    'University of Cincinnati': 'University of Cincinnati-Main Campus',
+}
+
 def find_best_match(school_name, candidates):
     """Trouve la meilleure correspondance de nom parmi les candidats."""
     best_score = 0
@@ -95,19 +121,59 @@ async def main():
     uncertain = 0
     not_found = 0
 
+    all_schools = [s for schools in by_state.values() for s in schools]
+
     for i, team in enumerate(teams):
+        team_name = team['name']
+
+        # Vérifier les overrides manuels d'abord
+        if team_name in MANUAL_OVERRIDES:
+            target_name = MANUAL_OVERRIDES[team_name]
+            best = next((s for s in all_schools if s.get('INSTNM') == target_name), None)
+            if best:
+                score = 1.0
+                log.info(f"[{i+1}/{len(teams)}] 🔧 {team_name} → {best.get('INSTNM')} (override)")
+                matched += 1
+                await conn.execute("""
+                    INSERT INTO school_data
+                    (swimcloud_id, scorecard_id, admission_rate, tuition_out_state,
+                     enrollment_total, median_earnings, school_type, scorecard_name, match_score)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    ON CONFLICT (swimcloud_id) DO UPDATE SET
+                        scorecard_id = EXCLUDED.scorecard_id,
+                        admission_rate = EXCLUDED.admission_rate,
+                        tuition_out_state = EXCLUDED.tuition_out_state,
+                        enrollment_total = EXCLUDED.enrollment_total,
+                        median_earnings = EXCLUDED.median_earnings,
+                        school_type = EXCLUDED.school_type,
+                        scorecard_name = EXCLUDED.scorecard_name,
+                        match_score = EXCLUDED.match_score,
+                        updated_at = NOW()
+                """,
+                    team['swimcloud_id'],
+                    safe_int(best.get('UNITID')),
+                    safe_float(best.get('ADM_RATE')),
+                    safe_int(best.get('TUITIONFEE_OUT')),
+                    safe_int(best.get('UGDS')),
+                    safe_int(best.get('MD_EARN_WNE_P10')),
+                    CONTROL_MAP.get(best.get('CONTROL', ''), 'unknown'),
+                    best.get('INSTNM'),
+                    score
+                )
+                continue
+
         state = team['state']
         candidates = by_state.get(state, [])
 
         if not candidates:
-            log.info(f"[{i+1}/{len(teams)}] ❌ Aucune école dans l'état {state} pour {team['name']}")
+            log.info(f"[{i+1}/{len(teams)}] ❌ Aucune école dans l'état {state} pour {team_name}")
             not_found += 1
             continue
 
-        best, score = find_best_match(team['name'], candidates)
+        best, score = find_best_match(team_name, candidates)
 
         if score < 0.6:
-            log.info(f"[{i+1}/{len(teams)}] ❌ Non trouvé: {team['name']} (meilleur: {best.get('INSTNM')} @ {score:.2f})")
+            log.info(f"[{i+1}/{len(teams)}] ❌ Non trouvé: {team_name} (meilleur: {best.get('INSTNM')} @ {score:.2f})")
             not_found += 1
             continue
 
@@ -117,7 +183,7 @@ async def main():
         else:
             matched += 1
 
-        log.info(f"[{i+1}/{len(teams)}] {label} {team['name']} → {best.get('INSTNM')} ({score:.2f})")
+        log.info(f"[{i+1}/{len(teams)}] {label} {team_name} → {best.get('INSTNM')} ({score:.2f})")
 
         await conn.execute("""
             INSERT INTO school_data
