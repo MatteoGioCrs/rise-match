@@ -32,24 +32,24 @@ YARDS_PER_METER = 1.09361
 # Long-course distances (500FR/1000FR/1650FR) are mapped to nearest LCM event:
 #   500y  ← 400m, 1000y ← 800m, 1650y ← 1500m
 LCM_TO_SCY_FACTOR: dict[str, float] = {
-    "50FR":   0.853,
-    "100FR":  0.847,
-    "200FR":  0.850,
-    "500FR":  0.848,   # interpolé depuis 200FR/1500m
-    "1000FR": 0.848,
-    "1650FR": 0.848,
-    "50BA":   0.829,
-    "100BA":  0.826,
-    "200BA":  0.845,
-    "50BR":   0.820,   # interpolé depuis 100BR
-    "100BR":  0.806,
-    "200BR":  0.841,
-    "50FL":   0.871,
-    "100FL":  0.855,
-    "200FL":  0.850,   # interpolé depuis 100FL/200FR
-    "100IM":  0.851,   # interpolé depuis 200IM
-    "200IM":  0.851,
-    "400IM":  0.854,
+    "50FR":   0.864,
+    "100FR":  0.865,
+    "200FR":  0.869,
+    "500FR":  0.869,
+    "1000FR": 0.869,
+    "1650FR": 0.869,
+    "50BA":   0.848,
+    "100BA":  0.856,
+    "200BA":  0.858,
+    "50BR":   0.901,
+    "100BR":  0.853,
+    "200BR":  0.853,
+    "50FL":   0.940,
+    "100FL":  0.878,
+    "200FL":  0.878,
+    "100IM":  0.862,
+    "200IM":  0.858,
+    "400IM":  0.866,
 }
 
 # SCM → SCY: facteur fixe piscine courte — différence uniquement due aux virages
