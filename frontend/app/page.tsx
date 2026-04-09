@@ -23,6 +23,7 @@ const DIVISIONS_UI = [
   { label: "NCAA D2", api: "division_2" },
   { label: "NCAA D3", api: "division_3" },
   { label: "NAIA",    api: "division_4" },
+  { label: "NJCAA",   api: "division_5" },
 ]
 
 interface TimeEntry {
