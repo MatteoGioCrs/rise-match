@@ -8,7 +8,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 log = logging.getLogger(__name__)
 
-SCORECARD_API_KEY = "mEMoGRSPJLJmxqZVTgkBKbcKMuKFJSMM"
+SCORECARD_API_KEY = "iqOCkqTKGZnG3RTGkhwVEgHCDYXQceYLC2Xsybl8"
 SCORECARD_BASE = "https://api.data.gov/ed/collegescorecard/v1/schools.json"
 
 FIELDS = ",".join([
@@ -28,9 +28,9 @@ async def search_scorecard(session, school_name, state):
     params = {
         "key": SCORECARD_API_KEY,
         "school.state": state,
+        "school.name": school_name,
         "fields": FIELDS,
         "per_page": 10,
-        "_search": school_name
     }
     try:
         async with session.get(SCORECARD_BASE, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
