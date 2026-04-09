@@ -5,11 +5,27 @@ import { useState } from "react"
 const API_URL = "https://rise-match-production.up.railway.app/api/match"
 
 const EVENTS = [
-  "50FR", "100FR", "200FR", "500FR", "1000FR", "1650FR",
-  "50BA", "100BA", "200BA",
-  "50BR", "100BR", "200BR",
-  "50FL", "100FL", "200FL",
-  "200IM", "400IM",
+  { value: "50FR",   label: "50m Nage Libre" },
+  { value: "100FR",  label: "100m Nage Libre" },
+  { value: "200FR",  label: "200m Nage Libre" },
+  { value: "400FR",  label: "400m Nage Libre (USports)" },
+  { value: "500FR",  label: "500y / 400m Nage Libre" },
+  { value: "800FR",  label: "800m Nage Libre (USports)" },
+  { value: "1000FR", label: "1000y Nage Libre" },
+  { value: "1500FR", label: "1500m Nage Libre (USports)" },
+  { value: "1650FR", label: "1650y / 1500m Nage Libre" },
+  { value: "50BA",   label: "50m Dos" },
+  { value: "100BA",  label: "100m Dos" },
+  { value: "200BA",  label: "200m Dos" },
+  { value: "50BR",   label: "50m Brasse" },
+  { value: "100BR",  label: "100m Brasse" },
+  { value: "200BR",  label: "200m Brasse" },
+  { value: "50FL",   label: "50m Papillon" },
+  { value: "100FL",  label: "100m Papillon" },
+  { value: "200FL",  label: "200m Papillon" },
+  { value: "100IM",  label: "100m 4 Nages" },
+  { value: "200IM",  label: "200m 4 Nages" },
+  { value: "400IM",  label: "400m 4 Nages" },
 ]
 
 const BASINS = [
@@ -102,6 +118,7 @@ export default function Page() {
   const [entries, setEntries] = useState<TimeEntry[]>([
     { id: nextId++, event: "100FR", basin: "LCM", time: "" },
   ])
+
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<ApiResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -345,7 +362,7 @@ export default function Page() {
                 className="rounded-lg text-sm font-mono px-2 py-2 outline-none focus:ring-1 focus:ring-blue-600"
                 style={{ backgroundColor: "#111827", border: "1px solid #1e2d45", color: "#e8edf5", width: "90px" }}
               >
-                {EVENTS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
+                {EVENTS.map(ev => <option key={ev.value} value={ev.value}>{ev.label}</option>)}
               </select>
 
               <select
@@ -361,7 +378,7 @@ export default function Page() {
                 type="text"
                 value={entry.time}
                 onChange={e => updateEntry(entry.id, "time", e.target.value)}
-                placeholder={entry.event.includes("F") && !entry.event.includes("M") && parseInt(entry.event) <= 100 ? "22.54" : "1:02.41"}
+                placeholder={["50FR","50BA","50BR","50FL"].includes(entry.event) ? "22.54" : "1:02.41"}
                 className="flex-1 rounded-lg text-sm font-mono px-3 py-2 outline-none focus:ring-1 focus:ring-blue-600"
                 style={{ backgroundColor: "#111827", border: "1px solid #1e2d45", color: "#e8edf5" }}
               />

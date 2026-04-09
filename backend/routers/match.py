@@ -1,9 +1,6 @@
 from fastapi import APIRouter
 import asyncpg
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from algo.conversion import convert_to_scy
 
 router = APIRouter()
