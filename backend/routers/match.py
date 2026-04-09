@@ -73,10 +73,20 @@ async def compute_match(body: dict):
         athlete_scy = scy_times[event]
         team_best = row["best_time"]
 
-        # Score : le nageur est dans les 5% du meilleur temps de l'équipe
+        # Score pondéré :
+        # - ratio < 1.0 (nageur plus rapide) = 3 points
+        # - ratio 1.0-1.02 = 2 points
+        # - ratio 1.02-1.05 = 1 point
+        # + bonus décimal pour départager les égalités
         ratio = athlete_scy / team_best if team_best > 0 else 999
-        if ratio <= 1.05:
+        if ratio <= 1.0:
+            scores[tid]["score"] += 3
+        elif ratio <= 1.02:
+            scores[tid]["score"] += 2
+        elif ratio <= 1.05:
             scores[tid]["score"] += 1
+
+        scores[tid]["score_decimal"] = scores[tid].get("score_decimal", 0) + (1 - ratio)
 
         scores[tid]["events"][event] = {
             "athlete_scy": round(athlete_scy, 2),
@@ -85,7 +95,9 @@ async def compute_match(body: dict):
         }
 
     # 4. Trier et retourner top 20
-    results = sorted(scores.values(), key=lambda x: x["score"], reverse=True)
+    results = sorted(scores.values(),
+        key=lambda x: (x["score"], x.get("score_decimal", 0)),
+        reverse=True)
     return {
         "scy_times": {k: round(v, 2) for k, v in scy_times.items()},
         "matches": results[:20]
