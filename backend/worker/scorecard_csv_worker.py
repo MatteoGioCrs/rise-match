@@ -60,6 +60,26 @@ MANUAL_OVERRIDES = {
     'Bowling Green State University': 'Bowling Green State University-Main Campus',
     'University of Pittsburgh': 'University of Pittsburgh-Pittsburgh Campus',
     'University of Cincinnati': 'University of Cincinnati-Main Campus',
+    'Florida Tech': 'Florida Institute of Technology',
+    'Tulane University': 'Tulane University of Louisiana',
+    'Catholic University': 'The Catholic University of America',
+    'Washington University (Missouri)': 'Washington University in St Louis',
+    'Wheaton College (Illinois)': 'Wheaton College',
+    'Stevens Institute': 'Stevens Institute of Technology',
+    'Trinity College (Connecticut)': 'Trinity College',
+    'U.S. Military Academy (Army)': 'United States Military Academy',
+    'U.S. Naval Academy (Navy)': 'United States Naval Academy',
+    'Union College (New York)': 'Union College',
+    'Kutztown University': 'Kutztown University of Pennsylvania',
+    'York College (NY)': 'CUNY York College',
+    'Centenary College': 'Centenary University',
+    'Lindsey Wilson University': 'Lindsey Wilson College',
+    'John Jay College': 'John Jay College of Criminal Justice',
+    "Saint Joseph's University (Long Island)": "Saint Joseph's University",
+    'PennWest Edinboro University': 'Pennsylvania Western University',
+    'Claremont McKenna-Harvey Mudd-Scripps Colleges': 'Claremont McKenna College',
+    'Pennsylvania Western-California': 'Pennsylvania Western University',
+    # Simon Fraser est canadienne — pas dans le CSV US, laissé comme ❌
 }
 
 def find_best_match(school_name, candidates):
