@@ -4,7 +4,6 @@ import csv
 import os
 import difflib
 import logging
-from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 log = logging.getLogger(__name__)
@@ -88,7 +87,58 @@ PREDDEG_MAP = {
     '4': 'Graduate',
 }
 
+PCIP_FAMILIES = {
+    'has_engineering':     ['PCIP14', 'PCIP15', 'PCIP11', 'PCIP41'],
+    'has_business':        ['PCIP52'],
+    'has_sciences':        ['PCIP26', 'PCIP40', 'PCIP51', 'PCIP27'],
+    'has_humanities':      ['PCIP23', 'PCIP16', 'PCIP38', 'PCIP54', 'PCIP05'],
+    'has_arts':            ['PCIP50', 'PCIP04'],
+    'has_social_sciences': ['PCIP45', 'PCIP42', 'PCIP44', 'PCIP09'],
+    'has_sports_kine':     ['PCIP31'],
+    'has_education':       ['PCIP13'],
+    'has_law':             ['PCIP22'],
+    'has_environment':     ['PCIP03', 'PCIP01'],
+}
+
+PCIP_LABELS = {
+    'PCIP11': 'Informatique',
+    'PCIP14': 'Ingénierie',
+    'PCIP26': 'Biologie',
+    'PCIP27': 'Mathématiques',
+    'PCIP40': 'Sciences physiques',
+    'PCIP42': 'Psychologie',
+    'PCIP45': 'Sciences sociales',
+    'PCIP51': 'Santé / Médecine',
+    'PCIP52': 'Business',
+    'PCIP50': 'Arts',
+    'PCIP13': 'Éducation',
+    'PCIP23': 'Lettres',
+    'PCIP22': 'Droit',
+    'PCIP31': 'Sport / Kiné',
+    'PCIP03': 'Environnement',
+}
+
+def get_program_flags(row):
+    flags = {}
+    for family, codes in PCIP_FAMILIES.items():
+        flags[family] = any(
+            safe_float(row.get(code, '0') or '0') > 0.03
+            for code in codes
+        )
+
+    all_pcip = {}
+    for code, label in PCIP_LABELS.items():
+        val = safe_float(row.get(code, '0') or '0')
+        if val and val > 0.02:
+            all_pcip[label] = val
+
+    top5 = sorted(all_pcip.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_programs = ', '.join([label for label, _ in top5]) or None
+
+    return flags, top_programs
+
 def build_insert_params(swimcloud_id, best, score):
+    flags, top_programs = get_program_flags(best)
     return (
         swimcloud_id,
         safe_int(best.get('UNITID')),
@@ -105,14 +155,29 @@ def build_insert_params(swimcloud_id, best, score):
         safe_float(best.get('LATITUDE')),
         safe_float(best.get('LONGITUDE')),
         best.get('INSTURL', '').strip() or None,
+        flags['has_engineering'],
+        flags['has_business'],
+        flags['has_sciences'],
+        flags['has_humanities'],
+        flags['has_arts'],
+        flags['has_social_sciences'],
+        flags['has_sports_kine'],
+        flags['has_education'],
+        flags['has_law'],
+        flags['has_environment'],
+        top_programs,
     )
 
 INSERT_SQL = """
     INSERT INTO school_data
     (swimcloud_id, scorecard_id, admission_rate, tuition_out_state,
      enrollment_total, median_earnings, school_type, scorecard_name, match_score,
-     retention_rate, pct_pell_grant, grad_debt_median, latitude, longitude, website)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     retention_rate, pct_pell_grant, grad_debt_median, latitude, longitude, website,
+     has_engineering, has_business, has_sciences, has_humanities, has_arts,
+     has_social_sciences, has_sports_kine, has_education, has_law, has_environment,
+     top_programs)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+            $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
     ON CONFLICT (swimcloud_id) DO UPDATE SET
         scorecard_id = EXCLUDED.scorecard_id,
         admission_rate = EXCLUDED.admission_rate,
@@ -128,6 +193,17 @@ INSERT_SQL = """
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude,
         website = EXCLUDED.website,
+        has_engineering = EXCLUDED.has_engineering,
+        has_business = EXCLUDED.has_business,
+        has_sciences = EXCLUDED.has_sciences,
+        has_humanities = EXCLUDED.has_humanities,
+        has_arts = EXCLUDED.has_arts,
+        has_social_sciences = EXCLUDED.has_social_sciences,
+        has_sports_kine = EXCLUDED.has_sports_kine,
+        has_education = EXCLUDED.has_education,
+        has_law = EXCLUDED.has_law,
+        has_environment = EXCLUDED.has_environment,
+        top_programs = EXCLUDED.top_programs,
         updated_at = NOW()
 """
 
@@ -161,17 +237,46 @@ async def main():
             latitude FLOAT,
             longitude FLOAT,
             website TEXT,
+            has_engineering BOOLEAN DEFAULT FALSE,
+            has_business BOOLEAN DEFAULT FALSE,
+            has_sciences BOOLEAN DEFAULT FALSE,
+            has_humanities BOOLEAN DEFAULT FALSE,
+            has_arts BOOLEAN DEFAULT FALSE,
+            has_social_sciences BOOLEAN DEFAULT FALSE,
+            has_sports_kine BOOLEAN DEFAULT FALSE,
+            has_education BOOLEAN DEFAULT FALSE,
+            has_law BOOLEAN DEFAULT FALSE,
+            has_environment BOOLEAN DEFAULT FALSE,
+            top_programs TEXT,
             updated_at TIMESTAMP DEFAULT NOW()
         )
     """)
 
     # Ajouter les colonnes si la table existait déjà sans elles
-    await conn.execute('ALTER TABLE school_data ADD COLUMN IF NOT EXISTS retention_rate FLOAT')
-    await conn.execute('ALTER TABLE school_data ADD COLUMN IF NOT EXISTS pct_pell_grant FLOAT')
-    await conn.execute('ALTER TABLE school_data ADD COLUMN IF NOT EXISTS grad_debt_median INTEGER')
-    await conn.execute('ALTER TABLE school_data ADD COLUMN IF NOT EXISTS latitude FLOAT')
-    await conn.execute('ALTER TABLE school_data ADD COLUMN IF NOT EXISTS longitude FLOAT')
-    await conn.execute('ALTER TABLE school_data ADD COLUMN IF NOT EXISTS website TEXT')
+    for col, typedef in [
+        ('retention_rate',    'FLOAT'),
+        ('pct_pell_grant',    'FLOAT'),
+        ('grad_debt_median',  'INTEGER'),
+        ('latitude',          'FLOAT'),
+        ('longitude',         'FLOAT'),
+        ('website',           'TEXT'),
+        ('has_engineering',   'BOOLEAN DEFAULT FALSE'),
+        ('has_business',      'BOOLEAN DEFAULT FALSE'),
+        ('has_sciences',      'BOOLEAN DEFAULT FALSE'),
+        ('has_humanities',    'BOOLEAN DEFAULT FALSE'),
+        ('has_arts',          'BOOLEAN DEFAULT FALSE'),
+        ('has_social_sciences','BOOLEAN DEFAULT FALSE'),
+        ('has_sports_kine',   'BOOLEAN DEFAULT FALSE'),
+        ('has_education',     'BOOLEAN DEFAULT FALSE'),
+        ('has_law',           'BOOLEAN DEFAULT FALSE'),
+        ('has_environment',   'BOOLEAN DEFAULT FALSE'),
+        ('top_programs',      'TEXT'),
+    ]:
+        await conn.execute(f'ALTER TABLE school_data ADD COLUMN IF NOT EXISTS {col} {typedef}')
+
+    # Vider la table pour réinsérer avec les nouvelles colonnes
+    await conn.execute('DELETE FROM school_data')
+    log.info("Table school_data vidée")
 
     teams = await conn.fetch("""
         SELECT swimcloud_id, name, state, city
