@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 
 const API_BASE = "https://rise-match-production.up.railway.app"
-const MAPS_KEY = "AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFDd6Y"
 
 const ROSTER_ORDER = [
   "50FR","100FR","200FR","500FR","1000FR","1650FR",
@@ -282,12 +281,11 @@ export default function SchoolPage() {
           <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Localisation</h2>
           <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #1e2d45" }}>
             <iframe
+              src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.05},${lat - 0.05},${lng + 0.05},${lat + 0.05}&layer=mapnik&marker=${lat},${lng}`}
               width="100%"
               height="300"
-              style={{ border: 0 }}
+              style={{ border: 0, borderRadius: "8px" }}
               loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              src={`https://www.google.com/maps/embed/v1/place?key=${MAPS_KEY}&q=${lat},${lng}`}
             />
           </div>
           {(city || state) && (
