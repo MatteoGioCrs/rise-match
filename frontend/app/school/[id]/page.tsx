@@ -1,5 +1,6 @@
 "use client"
 
+import type { CSSProperties } from "react"
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 
@@ -13,15 +14,48 @@ const ROSTER_ORDER = [
   "200IM","400IM",
 ]
 
+const PROGRAMS = [
+  { key: "has_engineering",     label: "Ingénierie & Tech" },
+  { key: "has_business",        label: "Business & Finance" },
+  { key: "has_sciences",        label: "Sciences & Médecine" },
+  { key: "has_humanities",      label: "Sciences humaines" },
+  { key: "has_arts",            label: "Arts & Design" },
+  { key: "has_social_sciences", label: "Sciences sociales" },
+  { key: "has_sports_kine",     label: "Sport & Kiné" },
+  { key: "has_education",       label: "Éducation" },
+  { key: "has_law",             label: "Droit" },
+  { key: "has_environment",     label: "Environnement" },
+]
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const BEBAS: CSSProperties = { fontFamily: "'Bebas Neue', sans-serif" }
+const MONO:  CSSProperties = { fontFamily: "'Space Mono', monospace" }
+
+const C = {
+  navy:       "#0B1628",
+  navyLight:  "#152236",
+  navyMid:    "#1E3A5F",
+  maize:      "#FFCB05",
+  maizeDark:  "#E6B800",
+  slate:      "#8A9BB0",
+  slateLight: "#B8C8D8",
+  green:      "#2ECC71",
+  orange:     "#F39C12",
+  red:        "#E74C3C",
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function divisionBadge(api: string): { label: string; bg: string; color: string } {
   switch (api) {
-    case "division_1":  return { label: "NCAA D1", bg: "#1a2f50", color: "#60a5fa" }
-    case "division_2":  return { label: "NCAA D2", bg: "#1a2f50", color: "#60a5fa" }
-    case "division_3":  return { label: "NCAA D3", bg: "#1a2f50", color: "#60a5fa" }
-    case "division_4":  return { label: "NAIA",    bg: "#1a3020", color: "#4ade80" }
-    case "division_5":  return { label: "NJCAA",   bg: "#2d1e0f", color: "#fb923c" }
-    case "division_10": return { label: "USports", bg: "#2d1515", color: "#f87171" }
-    default:            return { label: api,        bg: "#1a2236", color: "#94a3b8" }
+    case "division_1":  return { label: "NCAA D1", bg: "#1a3a6b", color: "#6fa3d8" }
+    case "division_2":  return { label: "NCAA D2", bg: "#1a4a2e", color: "#5dba78" }
+    case "division_3":  return { label: "NCAA D3", bg: "#2a3a1a", color: "#8dba5d" }
+    case "division_4":  return { label: "NAIA",    bg: "#2a1a3a", color: "#9d7dca" }
+    case "division_5":  return { label: "NJCAA",   bg: "#3a2a1a", color: "#ca9d5d" }
+    case "division_10": return { label: "USports", bg: "#3a1a1a", color: "#ca5d5d" }
+    default:            return { label: api,        bg: "#1a2236", color: C.slate  }
   }
 }
 
@@ -37,6 +71,67 @@ function fmt(n: number | null, prefix = "", suffix = ""): string {
   return `${prefix}${n.toLocaleString("en-US")}${suffix}`
 }
 
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function Navbar() {
+  return (
+    <header style={{
+      backgroundColor: C.navy,
+      height: 72,
+      borderBottom: `2px solid ${C.maize}`,
+      position: "sticky",
+      top: 0,
+      zIndex: 100,
+    }}>
+      <div style={{
+        maxWidth: 900,
+        margin: "0 auto",
+        padding: "0 24px",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <div>
+          <div style={{ ...BEBAS, fontSize: 28, letterSpacing: 1, lineHeight: 1 }}>
+            <span style={{ color: C.maize }}>RISE</span>
+            <span style={{ color: "#fff" }}>.MATCH</span>
+          </div>
+          <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>Powered by RISE Athletics</div>
+        </div>
+        <a
+          href="https://riseathletics.fr"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 12, color: C.slate, textDecoration: "none" }}
+        >
+          riseathletics.fr ↗
+        </a>
+      </div>
+    </header>
+  )
+}
+
+function SectionStamp({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <span style={{
+        ...BEBAS,
+        fontSize: 24,
+        color: C.maize,
+        letterSpacing: 3,
+        border: `2px solid ${C.maize}`,
+        padding: "4px 12px",
+        display: "inline-block",
+      }}>
+        {children}
+      </span>
+    </div>
+  )
+}
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
+
 interface TeamTime {
   best_seconds: number
   best_display: string
@@ -50,15 +145,17 @@ interface SchoolData {
   times_women: Record<string, TeamTime>
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function SchoolPage() {
   const router = useRouter()
   const params = useParams()
   const teamId = params.id as string
 
-  const [data, setData] = useState<SchoolData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<"M" | "F">("M")
-  const [logoError, setLogoError] = useState(false)
+  const [data,       setData]       = useState<SchoolData | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [tab,        setTab]        = useState<"M" | "F">("M")
+  const [logoError,  setLogoError]  = useState(false)
 
   useEffect(() => {
     fetch(`${API_BASE}/api/school/${teamId}`)
@@ -69,230 +166,311 @@ export default function SchoolPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0A0E1A" }}>
-        <div className="w-10 h-10 border-2 border-transparent border-t-blue-400 rounded-full animate-spin" />
+      <div style={{ backgroundColor: C.navy, minHeight: "100vh" }}>
+        <Navbar />
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "calc(100vh - 74px)" }}>
+          <div className="animate-spin" style={{ width: 40, height: 40, borderRadius: "50%", border: `3px solid ${C.navyMid}`, borderTopColor: C.maize }} />
+        </div>
       </div>
     )
   }
 
   if (!data || (data as { error?: string }).error) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0A0E1A" }}>
-        <div className="text-center">
-          <p className="text-gray-400 mb-4">École non trouvée</p>
-          <button onClick={() => router.back()} className="text-blue-400 text-sm hover:text-blue-300">
-            ← Retour
+      <div style={{ backgroundColor: C.navy, minHeight: "100vh" }}>
+        <Navbar />
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: "calc(100vh - 74px)", gap: 16 }}>
+          <p style={{ color: C.slate }}>École non trouvée</p>
+          <button
+            onClick={() => router.back()}
+            style={{ ...BEBAS, fontSize: 14, color: C.maize, background: "none", border: "none", cursor: "pointer", letterSpacing: 1 }}
+          >
+            ← RETOUR
           </button>
         </div>
       </div>
     )
   }
 
-  const t = data.team
+  const t      = data.team
   const counts = data.roster_counts
-  const times = tab === "M" ? data.times_men : data.times_women
+  const times  = tab === "M" ? data.times_men : data.times_women
 
-  const name = t.name as string
-  const division = t.division as string
-  const state = t.state as string | null
-  const city = t.city as string | null
-  const website = t.website as string | null
-  const lat = t.latitude as number | null
-  const lng = t.longitude as number | null
+  const name       = t.name     as string
+  const division   = t.division as string
+  const state      = t.state    as string | null
+  const city       = t.city     as string | null
+  const website    = t.website  as string | null
+  const lat        = t.latitude  as number | null
+  const lng        = t.longitude as number | null
 
-  const logoUrl = !logoError ? getLogoUrl(website) : null
-  const initials = name.split(/\s+/).filter((w: string) => /^[A-Z]/.test(w)).slice(0, 2).map((w: string) => w[0]).join("")
-  const isCA = division === "division_10"
-  const badge = divisionBadge(division)
+  const logoUrl     = !logoError ? getLogoUrl(website) : null
+  const initials    = name.split(/\s+/).filter((w: string) => /^[A-Z]/.test(w)).slice(0, 2).map((w: string) => w[0]).join("")
+  const isCA        = division === "division_10"
+  const badge       = divisionBadge(division)
+  const websiteHref = website ? (website.startsWith("http") ? website : `https://${website}`) : null
 
-  const websiteHref = website
-    ? (website.startsWith("http") ? website : `https://${website}`)
-    : null
+  const admRate    = t.admission_rate    as number | null
+  const tuition    = t.tuition_out_state as number | null
+  const enrollment = t.enrollment_total  as number | null
+  const earnings   = t.median_earnings   as number | null
+  const retention  = t.retention_rate    as number | null
+  const debt       = t.grad_debt_median  as number | null
+  const pell       = t.pct_pell_grant    as number | null
+  const schoolType = t.school_type       as string | null
+  const topPrograms = t.top_programs     as string | null
+
+  const hasAcademic = admRate !== null || tuition !== null || enrollment !== null
 
   return (
-    <div className="min-h-screen px-4 py-8 max-w-3xl mx-auto" style={{ backgroundColor: "#0A0E1A" }}>
-      {/* Nav */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 text-sm transition-colors"
-      >
-        ← Retour aux résultats
-      </button>
+    <div style={{ backgroundColor: C.navy, minHeight: "100vh" }}>
+      <Navbar />
 
-      {/* Header */}
-      <div className="flex items-start gap-5 mb-8">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt={name}
-            width={64}
-            height={64}
-            className="w-16 h-16 rounded-xl object-contain shrink-0"
-            style={{ backgroundColor: "#f8fafc" }}
-            onError={() => setLogoError(true)}
-          />
-        ) : (
-          <div
-            className="w-16 h-16 rounded-xl flex items-center justify-center shrink-0 text-xl font-bold"
-            style={{ backgroundColor: "#1a2236", color: "#60a5fa" }}
-          >
-            {initials}
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-black text-white leading-tight mb-2">{name}</h1>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="text-xs font-bold px-1.5 py-0.5 rounded"
-              style={{ backgroundColor: isCA ? "#3b0a0a" : "#0a1a3b", color: isCA ? "#fca5a5" : "#93c5fd" }}
-            >
-              {isCA ? "CA" : "US"}
-            </span>
-            <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: badge.bg, color: badge.color }}>
-              {badge.label}
-            </span>
-            {(state || city) && (
-              <span className="text-gray-500 text-xs">{state}{city ? ` · ${city}` : ""}</span>
-            )}
-            {websiteHref && (
-              <a
-                href={websiteHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs transition-colors"
-                style={{ color: "#4b6fa8" }}
-                onMouseOver={e => (e.currentTarget.style.color = "#60a5fa")}
-                onMouseOut={e => (e.currentTarget.style.color = "#4b6fa8")}
-              >
-                🌐 Site officiel
-              </a>
-            )}
+      {/* Back */}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "20px 24px 0" }}>
+        <button
+          onClick={() => router.back()}
+          style={{ ...BEBAS, fontSize: 14, letterSpacing: 1, color: C.maize, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+        >
+          ← RETOUR AUX RÉSULTATS
+        </button>
+      </div>
+
+      {/* Hero */}
+      <div style={{
+        background: `repeating-linear-gradient(45deg, rgba(255,203,5,0.03) 0px, rgba(255,203,5,0.03) 1px, transparent 1px, transparent 8px), ${C.navy}`,
+        padding: "40px 24px 44px",
+      }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
+          {/* Logo 80px */}
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={name}
+              width={80}
+              height={80}
+              style={{ width: 80, height: 80, borderRadius: 10, objectFit: "contain", backgroundColor: "#f8fafc", flexShrink: 0 }}
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <div style={{ width: 80, height: 80, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: C.navyMid, ...BEBAS, fontSize: 28, color: C.maize }}>
+              {initials}
+            </div>
+          )}
+
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <h1 style={{ ...BEBAS, fontSize: "clamp(28px, 5vw, 56px)", color: "#fff", lineHeight: 0.95, margin: "0 0 14px", letterSpacing: 1 }}>
+              {name}
+            </h1>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "3px 8px", borderRadius: 4, backgroundColor: isCA ? "#4a0a0a" : C.navyMid, color: isCA ? "#f87171" : C.maize }}>
+                {isCA ? "CA" : "US"}
+              </span>
+              <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "3px 8px", borderRadius: 4, backgroundColor: badge.bg, color: badge.color }}>
+                {badge.label}
+              </span>
+              {schoolType && (
+                <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "3px 8px", borderRadius: 4, backgroundColor: C.navyLight, color: C.slateLight }}>
+                  {schoolType === "public" ? "PUBLIC" : schoolType === "private" ? "PRIVÉ" : schoolType.toUpperCase()}
+                </span>
+              )}
+              {(state || city) && (
+                <span style={{ fontSize: 13, color: C.slate }}>
+                  {state}{city ? ` · ${city}` : ""}
+                </span>
+              )}
+              {websiteHref && (
+                <a
+                  href={websiteHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: C.slate, textDecoration: "none", transition: "color 0.15s" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = C.maize)}
+                  onMouseLeave={e => (e.currentTarget.style.color = C.slate)}
+                >
+                  🌐 Site officiel
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Section 1 — Données académiques */}
-      {(t.admission_rate !== null || t.tuition_out_state !== null) && (
-        <div className="mb-8">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Données académiques</h2>
-          <div className="grid grid-cols-3 gap-3">
+      {/* Main content */}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "48px 24px 80px" }}>
+
+        {/* ACADEMIC REPORT */}
+        {hasAcademic && (
+          <div style={{ marginBottom: 56 }}>
+            <SectionStamp>ACADEMIC REPORT</SectionStamp>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
+              {[
+                { label: "Admission",    value: admRate === null ? "—" : admRate > 80 ? "Open" : `${admRate}%` },
+                { label: "Scolarité",    value: tuition === null ? "—" : `$${tuition.toLocaleString("en-US")}` },
+                { label: "Effectif",     value: enrollment === null ? "—" : enrollment.toLocaleString("en-US") },
+                { label: "Salaire 10y",  value: fmt(earnings, "$") },
+                { label: "Rétention",    value: retention === null ? "—" : `${retention}%` },
+                { label: "Dette sortie", value: fmt(debt, "$") },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ backgroundColor: C.navyLight, borderRadius: 8, padding: "16px 20px", borderTop: `2px solid ${C.maize}` }}>
+                  <div style={{ ...BEBAS, fontSize: 34, color: "#fff", lineHeight: 1, marginBottom: 4, letterSpacing: 0.5 }}>{value}</div>
+                  <div style={{ fontSize: 12, color: C.slate, marginBottom: 10 }}>{label}</div>
+                  <div style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.08)" }}>
+                    <div style={{ height: "100%", borderRadius: 2, background: `linear-gradient(90deg, ${C.maize}, ${C.maizeDark})`, width: "60%" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(schoolType || pell !== null) && (
+              <p style={{ marginTop: 12, fontSize: 12, color: C.slate, lineHeight: 1.6 }}>
+                {schoolType && (
+                  <>Type : <span style={{ color: C.slateLight }}>{schoolType === "public" ? "Université publique" : schoolType === "private" ? "Université privée" : schoolType}</span></>
+                )}
+                {pell !== null && (
+                  <> · Aide Pell : <span style={{ color: C.slateLight }}>{pell}% des étudiants</span></>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ROSTER ANALYSIS */}
+        <div style={{ marginBottom: 56 }}>
+          <SectionStamp>ROSTER ANALYSIS</SectionStamp>
+
+          {/* Counts */}
+          <div style={{ display: "flex", gap: 40, marginBottom: 24 }}>
             {[
-              { icon: "🎓", label: "Admission",   value: t.admission_rate !== null ? (Number(t.admission_rate) > 80 ? "Non sélectif" : `${t.admission_rate}%`) : "—" },
-              { icon: "💰", label: "Scolarité",   value: fmt(t.tuition_out_state as number | null, "$", "/an") },
-              { icon: "👥", label: "Effectif",    value: t.enrollment_total !== null ? (Number(t.enrollment_total) < 3000 ? `Petite (${(t.enrollment_total as number).toLocaleString("en-US")})` : Number(t.enrollment_total) <= 10000 ? `Moyenne (${(t.enrollment_total as number).toLocaleString("en-US")})` : `Grande (${(t.enrollment_total as number).toLocaleString("en-US")})`) : "—" },
-              { icon: "💼", label: "Salaire 10y", value: fmt(t.median_earnings as number | null, "$") },
-              { icon: "📈", label: "Rétention",   value: t.retention_rate !== null ? `${t.retention_rate}%` : "—" },
-              { icon: "💳", label: "Dette sortie",value: fmt(t.grad_debt_median as number | null, "$") },
-            ].map(({ icon, label, value }) => (
-              <div
-                key={label}
-                className="rounded-xl p-4"
-                style={{ backgroundColor: "#111827", border: "1px solid #1e2d45" }}
-              >
-                <div className="text-lg mb-1">{icon}</div>
-                <div className="text-xs text-gray-500 mb-0.5">{label}</div>
-                <div className="text-sm font-bold text-white">{value as string}</div>
+              { label: "Hommes",   value: counts.men },
+              { label: "Femmes",   value: counts.women },
+              { label: "Partants", value: counts.departing },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <div style={{ ...BEBAS, fontSize: 40, color: "#fff", lineHeight: 1, letterSpacing: 0.5 }}>{value}</div>
+                <div style={{ fontSize: 12, color: C.slate, marginTop: 2 }}>{label}</div>
               </div>
             ))}
           </div>
-          {(t.school_type as string | null) && (
-            <p className="mt-2 text-xs text-gray-500">
-              Type : <span className="text-gray-300">{t.school_type === "public" ? "Université publique" : t.school_type === "private" ? "Université privée" : t.school_type as string}</span>
-              {(t.pct_pell_grant as number | null) !== null && (
-                <> · Aide financière (Pell) : <span className="text-gray-300">{t.pct_pell_grant as number}% des étudiants</span></>
-              )}
+
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 0, marginBottom: 0, width: "fit-content" }}>
+            {(["M", "F"] as const).map(g => (
+              <button
+                key={g}
+                onClick={() => setTab(g)}
+                style={{
+                  ...BEBAS,
+                  fontSize: 14,
+                  letterSpacing: 1,
+                  padding: "9px 28px",
+                  borderRadius: g === "M" ? "8px 0 0 0" : "0 8px 0 0",
+                  backgroundColor: tab === g ? C.maize : C.navyLight,
+                  color: tab === g ? C.navy : C.slate,
+                  border: `1px solid ${tab === g ? C.maize : C.navyMid}`,
+                  borderBottom: "none",
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {g === "M" ? "HOMMES" : "FEMMES"}
+              </button>
+            ))}
+          </div>
+
+          {/* Table */}
+          <div style={{ borderRadius: "0 8px 8px 8px", overflow: "hidden", border: `1px solid ${C.navyMid}` }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: C.navyMid }}>
+                  {["ÉPREUVE", "MEILLEUR TEMPS", "NAGEUR(SE)"].map(h => (
+                    <th key={h} style={{ ...BEBAS, fontSize: 11, letterSpacing: 2, color: C.maize, padding: "10px 16px", textAlign: "left", fontWeight: 400 }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ROSTER_ORDER.filter(ev => times[ev]).map((ev, i) => (
+                  <tr
+                    key={ev}
+                    style={{ backgroundColor: i % 2 === 0 ? C.navyLight : C.navy, transition: "background-color 0.1s" }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,203,5,0.05)")}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = i % 2 === 0 ? C.navyLight : C.navy)}
+                  >
+                    <td style={{ ...MONO, fontSize: 13, color: C.slate, padding: "10px 16px" }}>{ev}</td>
+                    <td style={{ ...MONO, fontSize: 14, color: "#fff", fontWeight: 700, padding: "10px 16px" }}>{times[ev].best_display}</td>
+                    <td style={{ fontSize: 13, color: C.slateLight, padding: "10px 16px" }}>{times[ev].best_swimmer}</td>
+                  </tr>
+                ))}
+                {ROSTER_ORDER.filter(ev => times[ev]).length === 0 && (
+                  <tr>
+                    <td colSpan={3} style={{ padding: 24, textAlign: "center", color: C.slate, ...MONO, fontSize: 13 }}>
+                      Aucun temps disponible
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* PROGRAMS AVAILABLE */}
+        <div style={{ marginBottom: 56 }}>
+          <div style={{ marginBottom: 16 }}>
+            <span style={{ ...BEBAS, fontSize: 18, color: C.maize, letterSpacing: 2 }}>PROGRAMS AVAILABLE</span>
+          </div>
+          {topPrograms && (
+            <p style={{ fontSize: 12, color: C.slate, marginBottom: 14, lineHeight: 1.6 }}>
+              Principales filières : <span style={{ color: C.slateLight }}>{topPrograms}</span>
             </p>
           )}
-        </div>
-      )}
-
-      {/* Section 2 — Équipe de natation */}
-      <div className="mb-8">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Équipe de natation</h2>
-
-        {/* Roster counts */}
-        <div className="flex gap-4 mb-4">
-          {[
-            { label: "Hommes", value: counts.men },
-            { label: "Femmes", value: counts.women },
-            { label: "Partants", value: counts.departing },
-          ].map(({ label, value }) => (
-            <div key={label} className="text-center">
-              <div className="text-xl font-black text-white">{value}</div>
-              <div className="text-xs text-gray-500">{label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-3">
-          {(["M", "F"] as const).map(g => (
-            <button
-              key={g}
-              onClick={() => setTab(g)}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{
-                backgroundColor: tab === g ? "#2E75B6" : "#111827",
-                color: tab === g ? "#fff" : "#6b7a99",
-                border: `1px solid ${tab === g ? "#2E75B6" : "#1e2d45"}`,
-              }}
-            >
-              {g === "M" ? "Hommes" : "Femmes"}
-            </button>
-          ))}
-        </div>
-
-        {/* Times table */}
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #1e2d45" }}>
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ backgroundColor: "#0d1525" }}>
-                <th className="text-left px-4 py-2.5 text-gray-500 font-semibold">Épreuve</th>
-                <th className="text-left px-4 py-2.5 text-gray-500 font-semibold">Meilleur temps</th>
-                <th className="text-left px-4 py-2.5 text-gray-500 font-semibold">Nageur(se)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ROSTER_ORDER.filter(ev => times[ev]).map((ev, i) => (
-                <tr
-                  key={ev}
-                  style={{ backgroundColor: i % 2 === 0 ? "#111827" : "#0f1a2e" }}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {PROGRAMS.map(({ key, label }) => {
+              const available = t[key] === true
+              return (
+                <span
+                  key={key}
+                  style={{
+                    ...BEBAS,
+                    fontSize: 12,
+                    letterSpacing: 1,
+                    padding: "5px 12px",
+                    borderRadius: 4,
+                    backgroundColor: available ? "rgba(255,203,5,0.15)" : C.navyLight,
+                    color: available ? C.maize : C.slate,
+                    border: `1px solid ${available ? C.maize : C.navyMid}`,
+                  }}
                 >
-                  <td className="px-4 py-2 font-mono text-gray-300 font-semibold">{ev}</td>
-                  <td className="px-4 py-2 font-mono text-white">{times[ev].best_display}</td>
-                  <td className="px-4 py-2 text-gray-400">{times[ev].best_swimmer}</td>
-                </tr>
-              ))}
-              {ROSTER_ORDER.filter(ev => times[ev]).length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
-                    Aucun temps disponible
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Section 3 — Carte */}
-      {lat !== null && lng !== null && (
-        <div className="mb-8">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Localisation</h2>
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #1e2d45" }}>
-            <iframe
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.05},${lat - 0.05},${lng + 0.05},${lat + 0.05}&layer=mapnik&marker=${lat},${lng}`}
-              width="100%"
-              height="300"
-              style={{ border: 0, borderRadius: "8px" }}
-              loading="lazy"
-            />
+                  {label}
+                </span>
+              )
+            })}
           </div>
-          {(city || state) && (
-            <p className="mt-2 text-xs text-gray-500">{city}{city && state ? ", " : ""}{state}</p>
-          )}
         </div>
-      )}
+
+        {/* CAMPUS LOCATION */}
+        {lat !== null && lng !== null && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ marginBottom: 16 }}>
+              <span style={{ ...BEBAS, fontSize: 18, color: C.maize, letterSpacing: 2 }}>CAMPUS LOCATION</span>
+            </div>
+            <div style={{ borderRadius: 8, overflow: "hidden", border: "2px solid rgba(255,203,5,0.3)" }}>
+              <iframe
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.05},${lat - 0.05},${lng + 0.05},${lat + 0.05}&layer=mapnik&marker=${lat},${lng}`}
+                width="100%"
+                height="300"
+                style={{ border: 0, display: "block" }}
+                loading="lazy"
+              />
+            </div>
+            {(city || state) && (
+              <p style={{ marginTop: 8, fontSize: 12, color: C.slate }}>
+                {city}{city && state ? ", " : ""}{state}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
