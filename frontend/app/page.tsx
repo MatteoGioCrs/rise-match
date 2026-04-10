@@ -1,10 +1,48 @@
 "use client"
 
 import type { CSSProperties } from "react"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
 const API_URL = "https://rise-match-production.up.railway.app/api/match"
+
+// ─── SCY Conversion ────────────────────────────────────────────────────────────
+
+const FACTEURS_LCM_SCY: Record<string, number> = {
+  "50FR": 0.864, "100FR": 0.865, "200FR": 0.869,
+  "400FR": 0.869, "500FR": 0.869, "1000FR": 0.869, "1650FR": 0.869,
+  "50BA": 0.848, "100BA": 0.856, "200BA": 0.858,
+  "50BR": 0.901, "100BR": 0.853, "200BR": 0.853,
+  "50FL": 0.940, "100FL": 0.878, "200FL": 0.878,
+  "100IM": 0.862, "200IM": 0.858, "400IM": 0.866,
+}
+const FACTEUR_SCM_SCY = 0.976
+
+function convertToSCY(event: string, basin: string, timeStr: string): string | null {
+  if (!timeStr || !timeStr.trim()) return null
+  const clean = timeStr.trim()
+  let t: number
+  if (clean.includes(":")) {
+    const parts = clean.split(":")
+    t = parseInt(parts[0]) * 60 + parseFloat(parts[1])
+  } else {
+    t = parseFloat(clean)
+  }
+  if (isNaN(t) || t <= 0) return null
+  let scy: number
+  if (basin === "SCY") { scy = t }
+  else if (basin === "SCM") { scy = t * FACTEUR_SCM_SCY }
+  else {
+    const f = FACTEURS_LCM_SCY[event]
+    if (!f) return null
+    scy = t * f
+  }
+  const mins = Math.floor(scy / 60)
+  const secs = scy % 60
+  return mins > 0 ? `${mins}:${secs.toFixed(2).padStart(5, "0")}` : secs.toFixed(2)
+}
+
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
 const EVENTS = [
   { value: "50FR",   label: "50m Nage Libre" },
@@ -82,8 +120,7 @@ const STATE_NAMES: Record<string, string> = {
   ME:"Maine", NH:"New Hampshire", VT:"Vermont", MA:"Massachusetts",
   RI:"Rhode Island", CT:"Connecticut", NY:"New York", NJ:"New Jersey",
   PA:"Pennsylvania", MD:"Maryland", DE:"Delaware", VA:"Virginia",
-  WV:"West Virginia", NC:"North Carolina", SC:"South Carolina",
-  GA:"Georgia", FL:"Florida",
+  WV:"West Virginia", NC:"North Carolina", SC:"South Carolina", GA:"Georgia", FL:"Florida",
   CA:"Californie", OR:"Oregon", WA:"Washington", AK:"Alaska",
   HI:"Hawaï", NV:"Nevada", ID:"Idaho", MT:"Montana",
   WY:"Wyoming", UT:"Utah", CO:"Colorado", AZ:"Arizona", NM:"New Mexico",
@@ -104,7 +141,7 @@ const BUDGET_OPTIONS = [
 
 const GRADE_ORDER = ["A", "B", "C", "D", "F"]
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Design tokens ─────────────────────────────────────────────────────────────
 
 const BEBAS: CSSProperties = { fontFamily: "'Bebas Neue', sans-serif" }
 const MONO:  CSSProperties = { fontFamily: "'Space Mono', monospace" }
@@ -122,16 +159,7 @@ const C = {
   red:        "#E74C3C",
 }
 
-const SECTION_LABEL: CSSProperties = {
-  ...BEBAS,
-  fontSize: 13,
-  color: C.maize,
-  letterSpacing: 2,
-  display: "block",
-  marginBottom: 10,
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function divisionBadge(api: string): { label: string; bg: string; color: string } {
   switch (api) {
@@ -162,65 +190,76 @@ function gradeOk(grade: string, minGrade: string | null): boolean {
 function getLogoUrl(website: string | null): string | null {
   if (!website) return null
   const domain = website.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]
-  if (!domain) return null
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
+  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=64` : null
 }
 
-// ─── Shared Components ────────────────────────────────────────────────────────
+// ─── Hook ──────────────────────────────────────────────────────────────────────
 
-function Navbar() {
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener("resize", check)
+    return () => window.removeEventListener("resize", check)
+  }, [])
+  return mobile
+}
+
+// ─── Shared components ─────────────────────────────────────────────────────────
+
+function Navbar({ onHome, showNewSearch, onNewSearch }: {
+  onHome: () => void
+  showNewSearch?: boolean
+  onNewSearch?: () => void
+}) {
   return (
-    <header style={{
-      backgroundColor: C.navy,
-      height: 72,
-      borderBottom: `2px solid ${C.maize}`,
-      position: "sticky",
-      top: 0,
-      zIndex: 100,
-    }}>
-      <div style={{
-        maxWidth: 900,
-        margin: "0 auto",
-        padding: "0 24px",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}>
-        <div>
+    <header style={{ backgroundColor: C.navy, height: 72, borderBottom: `2px solid ${C.maize}`, position: "sticky", top: 0, zIndex: 100, flexShrink: 0 }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <button onClick={onHome} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
           <div style={{ ...BEBAS, fontSize: 28, letterSpacing: 1, lineHeight: 1 }}>
-            <span style={{ color: C.maize }}>RISE</span>
-            <span style={{ color: "#fff" }}>.MATCH</span>
+            <span style={{ color: C.maize }}>RISE</span><span style={{ color: "#fff" }}>.MATCH</span>
           </div>
           <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>Powered by RISE Athletics</div>
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {showNewSearch && onNewSearch && (
+            <button onClick={onNewSearch} style={{ ...BEBAS, fontSize: 13, letterSpacing: 1, color: C.maize, background: "none", border: `1px solid ${C.maize}`, borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>
+              ← NOUVELLE RECHERCHE
+            </button>
+          )}
+          <a href="https://riseathletics.fr" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: C.slate, textDecoration: "none" }}>
+            riseathletics.fr ↗
+          </a>
         </div>
-        <a
-          href="https://riseathletics.fr"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 12, color: C.slate, textDecoration: "none" }}
-        >
-          riseathletics.fr ↗
-        </a>
       </div>
     </header>
+  )
+}
+
+function Breadcrumb({ state, onHome, onForm }: { state: "form" | "results"; onHome: () => void; onForm?: () => void }) {
+  const linkStyle: CSSProperties = { background: "none", border: "none", cursor: "pointer", color: C.slate, fontSize: 12, padding: 0 }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.slate, paddingTop: 8 }}>
+      <button onClick={onHome} style={linkStyle}>Accueil</button>
+      <span>→</span>
+      {state === "results" && onForm ? (
+        <>
+          <button onClick={onForm} style={linkStyle}>Formulaire</button>
+          <span>→</span>
+          <span style={{ color: C.slateLight }}>Résultats</span>
+        </>
+      ) : (
+        <span style={{ color: C.slateLight }}>Formulaire</span>
+      )}
+    </div>
   )
 }
 
 function CountryBadge({ country }: { country: string }) {
   const isCA = country === "CA"
   return (
-    <span style={{
-      ...BEBAS,
-      fontSize: 11,
-      letterSpacing: 1,
-      padding: "2px 6px",
-      borderRadius: 4,
-      backgroundColor: isCA ? "#4a0a0a" : C.navyMid,
-      color: isCA ? "#f87171" : C.maize,
-      border: `1px solid ${isCA ? "#7a1a1a" : C.navyMid}`,
-      flexShrink: 0,
-    }}>
+    <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "2px 6px", borderRadius: 4, backgroundColor: isCA ? "#4a0a0a" : C.navyMid, color: isCA ? "#f87171" : C.maize, flexShrink: 0 }}>
       {isCA ? "CA" : "US"}
     </span>
   )
@@ -231,21 +270,13 @@ function UniversityLogo({ name, website, size = 36 }: { name: string; website: s
   const initials = name.split(/\s+/).filter(w => /^[A-Z]/.test(w)).slice(0, 2).map(w => w[0]).join("")
   const base: CSSProperties = { width: size, height: size, borderRadius: 6, flexShrink: 0 }
   if (!logoUrl) {
-    return (
-      <div style={{ ...base, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: C.navyMid, ...BEBAS, fontSize: Math.round(size * 0.38), color: C.maize }}>
-        {initials}
-      </div>
-    )
+    return <div style={{ ...base, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: C.navyMid, ...BEBAS, fontSize: Math.round(size * 0.38), color: C.maize }}>{initials}</div>
   }
   return (
-    <div style={{ ...base, position: "relative", overflow: "hidden" }}>
-      <img
-        src={logoUrl}
-        alt={name}
-        width={size}
-        height={size}
+    <div style={{ ...base, position: "relative" }}>
+      <img src={logoUrl} alt={name} width={size} height={size}
         style={{ width: size, height: size, objectFit: "contain", backgroundColor: "#f8fafc", borderRadius: 6, display: "block" }}
-        onError={(e) => {
+        onError={e => {
           e.currentTarget.style.display = "none"
           const fb = e.currentTarget.nextElementSibling as HTMLElement | null
           if (fb) fb.style.display = "flex"
@@ -258,23 +289,17 @@ function UniversityLogo({ name, website, size = 36 }: { name: string; website: s
   )
 }
 
-function ToggleBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function ToggleBtn({ active, onClick, children, fullWidth }: { active: boolean; onClick: () => void; children: React.ReactNode; fullWidth?: boolean }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "7px 14px",
-        borderRadius: 6,
-        border: `1px solid ${active ? C.maize : "rgba(255,255,255,0.15)"}`,
-        backgroundColor: active ? C.maize : "transparent",
-        color: active ? C.navy : C.slate,
-        fontWeight: active ? 600 : 400,
-        fontSize: 13,
-        cursor: "pointer",
-        transition: "all 0.15s",
-        whiteSpace: "nowrap",
-      }}
-    >
+    <button onClick={onClick} style={{
+      padding: "7px 14px", borderRadius: 6,
+      border: `1px solid ${active ? C.maize : "rgba(255,255,255,0.15)"}`,
+      backgroundColor: active ? C.maize : "transparent",
+      color: active ? C.navy : C.slate,
+      fontWeight: active ? 600 : 400, fontSize: 13,
+      cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap",
+      width: fullWidth ? "100%" : "auto",
+    }}>
       {children}
     </button>
   )
@@ -282,34 +307,56 @@ function ToggleBtn({ active, onClick, children }: { active: boolean; onClick: ()
 
 function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "4px 12px",
-        borderRadius: 20,
-        border: `1px solid ${active ? C.maize : C.slate}`,
-        backgroundColor: active ? C.maize : "transparent",
-        color: active ? C.navy : C.slate,
-        fontWeight: active ? 600 : 400,
-        fontSize: 12,
-        cursor: "pointer",
-        transition: "all 0.15s",
-        whiteSpace: "nowrap",
-      }}
-    >
+    <button onClick={onClick} style={{
+      padding: "4px 12px", borderRadius: 20,
+      border: `1px solid ${active ? C.maize : C.slate}`,
+      backgroundColor: active ? C.maize : "transparent",
+      color: active ? C.navy : C.slate,
+      fontWeight: active ? 600 : 400, fontSize: 12,
+      cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap",
+    }}>
       {children}
     </button>
   )
 }
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
+function CounterStat({ target, suffix, label }: { target: number; suffix: string; label: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [count, setCount] = useState(0)
+  const [started, setStarted] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === "undefined") { setCount(target); return }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !started) {
+        setStarted(true)
+        const t0 = Date.now()
+        const tick = () => {
+          const p = Math.min((Date.now() - t0) / 1500, 1)
+          setCount(Math.round((1 - Math.pow(1 - p, 3)) * target))
+          if (p < 1) requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      }
+    }, { threshold: 0.3 })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [target, started])
+
+  return (
+    <div ref={ref} style={{ textAlign: "center" }}>
+      <div style={{ ...BEBAS, fontSize: "clamp(36px, 5vw, 56px)", color: C.maize, lineHeight: 1 }}>{count}{suffix}</div>
+      <div style={{ fontSize: 14, color: C.slate, marginTop: 4 }}>{label}</div>
+    </div>
+  )
+}
+
+// ─── Interfaces ────────────────────────────────────────────────────────────────
 
 interface TimeEntry { id: number; event: string; basin: string; time: string }
 
-interface EventMatch {
-  athlete_time: number; team_best: number; ratio: number
-  rang?: number; pts?: number
-}
+interface EventMatch { athlete_time: number; team_best: number; ratio: number; rang?: number; pts?: number }
 
 interface AcademicData {
   admission_rate: number | null; tuition_out_state: number | null
@@ -339,40 +386,35 @@ interface MatchResult {
   team_times: Record<string, TeamTime>
 }
 
-interface ApiResponse {
-  scy_times: Record<string, number>
-  matches: MatchResult[]
-  error?: string
-}
+interface ApiResponse { scy_times: Record<string, number>; matches: MatchResult[]; error?: string }
 
-// ─── Utils ────────────────────────────────────────────────────────────────────
+// ─── Utils ─────────────────────────────────────────────────────────────────────
 
 function parseTime(s: string): number {
   s = s.trim()
-  if (s.includes(":")) {
-    const [mins, secs] = s.split(":")
-    return parseInt(mins) * 60 + parseFloat(secs)
-  }
+  if (s.includes(":")) { const [m, sec] = s.split(":"); return parseInt(m) * 60 + parseFloat(sec) }
   return parseFloat(s)
 }
 
 function formatScy(seconds: number): string {
-  if (seconds >= 60) {
-    const m = Math.floor(seconds / 60)
-    const s = (seconds % 60).toFixed(2).padStart(5, "0")
-    return `${m}:${s}`
-  }
+  if (seconds >= 60) { const m = Math.floor(seconds / 60); return `${m}:${(seconds % 60).toFixed(2).padStart(5, "0")}` }
   return seconds.toFixed(2)
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Main ──────────────────────────────────────────────────────────────────────
 
 let nextId = 1
+type AppState = "landing" | "form" | "results"
 
 export default function Page() {
   const router = useRouter()
+  const isMobile = useIsMobile()
 
-  // ── form state ──
+  // ── navigation ──
+  const [appState,  setAppState]  = useState<AppState>("landing")
+  const [formMode,  setFormMode]  = useState<"simple" | "advanced">("simple")
+
+  // ── form ──
   const [selectedAge,        setSelectedAge]        = useState<number>(17)
   const [gender,             setGender]             = useState<"M" | "F">("M")
   const [selectedDivisions,  setSelectedDivisions]  = useState<string[]>(DIVISIONS_UI.map(d => d.api))
@@ -383,36 +425,52 @@ export default function Page() {
     { id: nextId++, event: "100FR", basin: "LCM", time: "" },
   ])
 
-  // ── filter state (client-side) ──
+  // ── filters ──
   const [filterBudget, setFilterBudget] = useState<number | null>(null)
   const [filterSize,   setFilterSize]   = useState<"small" | "medium" | "large" | null>(null)
   const [filterType,   setFilterType]   = useState<"public" | "private" | null>(null)
   const [filterGrade,  setFilterGrade]  = useState<string | null>(null)
 
-  // ── app state ──
+  // ── app ──
   const [loading,     setLoading]     = useState(false)
   const [results,     setResults]     = useState<ApiResponse | null>(null)
   const [error,       setError]       = useState<string | null>(null)
   const [openRosters, setOpenRosters] = useState<Set<number | string>>(new Set())
 
-  // ── region/state helpers ──
-  const availableStates = selectedRegions.flatMap(r => REGIONS_CONFIG[r] ?? [])
+  // ── localStorage ──
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem("risematch_mode")
+      if (m === "simple" || m === "advanced") setFormMode(m)
+      const e = localStorage.getItem("risematch_entries")
+      if (e) {
+        const parsed = JSON.parse(e) as TimeEntry[]
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          nextId = Math.max(...parsed.map(x => x.id)) + 1
+          setEntries(parsed)
+        }
+      }
+    } catch { /* ignore */ }
+  }, [])
 
+  useEffect(() => { try { localStorage.setItem("risematch_mode", formMode) } catch { /* ignore */ } }, [formMode])
+  useEffect(() => { try { localStorage.setItem("risematch_entries", JSON.stringify(entries)) } catch { /* ignore */ } }, [entries])
+
+  // ── scroll to top on state change ──
+  useEffect(() => { if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" }) }, [appState])
+
+  // ── helpers ──
   function toggleRegion(region: string) {
     setSelectedRegions(prev => {
       const next = prev.includes(region) ? prev.filter(r => r !== region) : [...prev, region]
-      const nextStates = availableStates.filter(s =>
-        next.flatMap(r => REGIONS_CONFIG[r] ?? []).includes(s)
-      )
-      setSelectedStates(nextStates)
+      const valid = next.flatMap(r => REGIONS_CONFIG[r] ?? [])
+      setSelectedStates(s => s.filter(st => valid.includes(st)))
       return next
     })
   }
 
   function toggleDivision(api: string) {
-    setSelectedDivisions(prev =>
-      prev.includes(api) ? prev.filter(d => d !== api) : [...prev, api]
-    )
+    setSelectedDivisions(prev => prev.includes(api) ? prev.filter(d => d !== api) : [...prev, api])
   }
 
   function addEntry() {
@@ -420,631 +478,639 @@ export default function Page() {
     setEntries(prev => [...prev, { id: nextId++, event: "100FR", basin: "LCM", time: "" }])
   }
 
-  function removeEntry(id: number) {
-    setEntries(prev => prev.filter(e => e.id !== id))
-  }
-
+  function removeEntry(id: number) { setEntries(prev => prev.filter(e => e.id !== id)) }
   function updateEntry(id: number, field: keyof TimeEntry, value: string) {
     setEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e))
   }
 
   const validEntries = entries.filter(e => e.time.trim() !== "" && !isNaN(parseTime(e.time)))
 
-  async function handleSubmit() {
-    if (validEntries.length === 0) return
-    setLoading(true)
-    setError(null)
-    setResults(null)
+  async function handleSubmit(
+    overrideTimes?: Array<{ event: string; basin: string; time_seconds: number }>,
+    overrideGender?: "M" | "F",
+    overrideDivisions?: string[]
+  ) {
+    const times = overrideTimes ?? validEntries.map(e => ({ event: e.event, basin: e.basin, time_seconds: parseTime(e.time) }))
+    if (times.length === 0) return
+    const divs = overrideDivisions ?? (formMode === "simple" ? DIVISIONS_UI.map(d => d.api) : selectedDivisions)
+
+    setLoading(true); setError(null); setResults(null)
     try {
       const body = {
-        times: validEntries.map(e => ({
-          event: e.event, basin: e.basin, time_seconds: parseTime(e.time),
-        })),
-        gender,
-        divisions: selectedDivisions,
-        age: selectedAge,
-        specialite: selectedSpecialite,
-        regions: selectedRegions,
-        states: selectedStates,
+        times,
+        gender: overrideGender ?? gender,
+        divisions: divs,
+        age: formMode === "simple" ? 17 : selectedAge,
+        specialite: formMode === "simple" ? "all" : selectedSpecialite,
+        regions: formMode === "simple" ? [] : selectedRegions,
+        states: formMode === "simple" ? [] : selectedStates,
       }
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
+      const res = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       if (!res.ok) throw new Error(`Erreur serveur : ${res.status}`)
       const data: ApiResponse = await res.json()
-      setResults(data)
+      setResults(data); setAppState("results")
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erreur inconnue")
-    } finally {
-      setLoading(false)
-    }
+      setAppState("form")
+    } finally { setLoading(false) }
   }
 
-  // ── Loading ───────────────────────────────────────────────────────────────
+  async function handleDemoSearch() {
+    await handleSubmit(
+      [{ event: "100FR", basin: "LCM", time_seconds: 52.94 }, { event: "50FR", basin: "LCM", time_seconds: 24.05 }],
+      "M",
+      DIVISIONS_UI.filter(d => d.api !== "division_10").map(d => d.api)
+    )
+  }
+
+  // ── LOADING ────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div style={{ backgroundColor: C.navy, minHeight: "100vh" }}>
-        <Navbar />
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "calc(100vh - 74px)", gap: 24 }}>
+      <div style={{ backgroundColor: C.navy, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        <Navbar onHome={() => setAppState("landing")} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, width: 280 }}>
             {[100, 72, 50].map((w, i) => (
-              <div
-                key={i}
-                style={{
-                  height: 6,
-                  borderRadius: 3,
-                  width: `${w}%`,
-                  background: `linear-gradient(90deg, ${C.navyLight} 0%, ${C.navyMid} 40%, ${C.maize}33 50%, ${C.navyMid} 60%, ${C.navyLight} 100%)`,
-                  backgroundSize: "200% 100%",
-                  animation: `shimmer 1.8s ease-in-out ${i * 0.25}s infinite`,
-                }}
-              />
+              <div key={i} style={{
+                height: 6, borderRadius: 3, width: `${w}%`,
+                background: `linear-gradient(90deg, ${C.navyLight} 0%, ${C.navyMid} 40%, ${C.maize}33 50%, ${C.navyMid} 60%, ${C.navyLight} 100%)`,
+                backgroundSize: "200% 100%",
+                animation: `shimmer 1.8s ease-in-out ${i * 0.25}s infinite`,
+              }} />
             ))}
           </div>
-          <p style={{ ...MONO, fontSize: 13, color: C.slate, marginTop: 8 }}>
-            Analyse de 600+ programmes en cours...
-          </p>
+          <p style={{ ...MONO, fontSize: 13, color: C.slate }}>Analyse de 600+ programmes en cours...</p>
         </div>
       </div>
     )
   }
 
-  // ── Results ───────────────────────────────────────────────────────────────
+  // ── LANDING ────────────────────────────────────────────────────────────────
 
-  if (results) {
-    const filtered = results.matches.filter(match => {
-      const ac = match.academic
-      if (!ac) return true
-      if (filterBudget !== null && ac.tuition_out_state !== null && ac.tuition_out_state >= filterBudget) return false
-      if (filterSize === "small"  && (ac.enrollment_total === null || ac.enrollment_total >= 3000))  return false
-      if (filterSize === "medium" && (ac.enrollment_total === null || ac.enrollment_total < 3000 || ac.enrollment_total > 10000)) return false
-      if (filterSize === "large"  && (ac.enrollment_total === null || ac.enrollment_total <= 10000)) return false
-      if (filterType === "public"  && ac.school_type !== "public")  return false
-      if (filterType === "private" && ac.school_type !== "private") return false
-      if (filterGrade && match.academic_grade && match.academic_grade !== "N/A") {
-        if (!gradeOk(match.academic_grade, filterGrade)) return false
-      }
-      return true
-    })
+  if (appState === "landing") {
+    const heroBg = `repeating-linear-gradient(45deg, rgba(255,203,5,0.04) 0px, rgba(255,203,5,0.04) 1px, transparent 1px, transparent 10px), ${C.navy}`
+    return (
+      <div style={{ backgroundColor: C.navy }}>
+        <Navbar onHome={() => setAppState("landing")} />
+
+        {/* HERO */}
+        <section style={{ background: heroBg, minHeight: "calc(100vh - 72px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? "60px 20px 48px" : "80px 24px 60px", textAlign: "center", position: "relative" }}>
+          <div style={{ display: "inline-block", border: "1px solid rgba(255,203,5,0.4)", borderRadius: 20, padding: "6px 16px", marginBottom: 28 }}>
+            <span style={{ ...BEBAS, fontSize: 13, color: C.maize, letterSpacing: 3 }}>🏊 NCAA · NAIA · USports · Canada</span>
+          </div>
+          <h1 style={{ ...BEBAS, lineHeight: 0.92, margin: "0 0 24px" }}>
+            <div style={{ fontSize: isMobile ? 42 : 80, color: "#fff" }}>TROUVE TON UNIVERSITÉ</div>
+            <div style={{ fontSize: isMobile ? 42 : 80, color: C.maize }}>IDÉALE AUX ÉTATS-UNIS</div>
+          </h1>
+          <p style={{ fontSize: isMobile ? 16 : 18, color: C.slateLight, maxWidth: 560, margin: "0 auto", lineHeight: 1.7, marginBottom: 28 }}>
+            L&apos;algorithme qui analyse 600+ universités américaines<br />
+            pour trouver le programme sportif et académique fait pour toi.
+          </p>
+          <div style={{ width: 60, height: 3, backgroundColor: C.maize, margin: "0 auto 36px" }} />
+          <div style={{ display: "flex", gap: 12, flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "center", width: isMobile ? "100%" : "auto", maxWidth: 420 }}>
+            <button
+              onClick={() => setAppState("form")}
+              style={{ ...BEBAS, fontSize: 18, letterSpacing: 1, backgroundColor: C.maize, color: C.navy, padding: "16px 28px", borderRadius: 8, border: "none", cursor: "pointer", transition: "all 0.15s", width: isMobile ? "100%" : "auto" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "scale(1.02)" }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
+            >
+              COMMENCER — C&apos;EST GRATUIT →
+            </button>
+            <button
+              onClick={handleDemoSearch}
+              style={{ ...BEBAS, fontSize: 18, letterSpacing: 1, backgroundColor: "transparent", color: "#fff", padding: "16px 28px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", cursor: "pointer", transition: "all 0.15s", width: isMobile ? "100%" : "auto" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; e.currentTarget.style.color = "#fff" }}
+            >
+              VOIR UN EXEMPLE
+            </button>
+          </div>
+          <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", fontSize: 12, color: C.slate, animation: "pulse 2s ease-in-out infinite" }}>
+            ↓ En savoir plus
+          </div>
+        </section>
+
+        {/* STATS */}
+        <section style={{ backgroundColor: C.navyLight, padding: isMobile ? "40px 20px" : "60px 24px" }}>
+          <div style={{ maxWidth: 700, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1px 1fr 1px 1fr", alignItems: "center" }}>
+            <CounterStat target={600} suffix="+" label="Universités analysées" />
+            <div style={{ height: isMobile ? 40 : 60, backgroundColor: "rgba(255,203,5,0.2)" }} />
+            <CounterStat target={50} suffix="+" label="Sports couverts" />
+            <div style={{ height: isMobile ? 40 : 60, backgroundColor: "rgba(255,203,5,0.2)" }} />
+            <CounterStat target={100} suffix="%" label="Gratuit à l'essai" />
+          </div>
+        </section>
+
+        {/* HOW IT WORKS */}
+        <section style={{ backgroundColor: C.navy, padding: isMobile ? "60px 20px" : "80px 24px" }}>
+          <h2 style={{ ...BEBAS, fontSize: isMobile ? 28 : 36, color: C.maize, letterSpacing: 4, textAlign: "center", marginBottom: 48 }}>
+            COMMENT ÇA MARCHE
+          </h2>
+          <div style={{ maxWidth: 900, margin: "0 auto", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 20 }}>
+            {[
+              { num: "01", icon: "⏱️", title: "ENTRE TES TEMPS",   text: "Renseigne tes meilleurs temps en LCM, SCM ou SCY. Notre algo les convertit automatiquement." },
+              { num: "02", icon: "🔬", title: "L'ALGO ANALYSE",    text: "600+ universités analysées en quelques secondes. Rang estimé dans l'équipe, fit académique, géographie." },
+              { num: "03", icon: "🎯", title: "TROUVE TON MATCH",  text: "Reçois une liste personnalisée avec scores sportif, académique et géographique pour chaque université." },
+            ].map(step => (
+              <div key={step.num} style={{ backgroundColor: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 28, position: "relative", overflow: "hidden" }}>
+                <div style={{ ...BEBAS, fontSize: 64, color: "rgba(255,203,5,0.12)", position: "absolute", top: -8, right: 16, lineHeight: 1 }}>{step.num}</div>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>{step.icon}</div>
+                <div style={{ ...BEBAS, fontSize: 20, color: C.maize, letterSpacing: 1, marginBottom: 10 }}>{step.title}</div>
+                <p style={{ fontSize: 14, color: C.slateLight, lineHeight: 1.7, margin: 0 }}>{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* WHY */}
+        <section style={{ backgroundColor: C.navyLight, padding: isMobile ? "60px 20px" : "80px 24px" }}>
+          <h2 style={{ ...BEBAS, fontSize: isMobile ? 28 : 36, color: "#fff", letterSpacing: 1, textAlign: "center", marginBottom: 48 }}>
+            POURQUOI RISE.MATCH ?
+          </h2>
+          <div style={{ maxWidth: 800, margin: "0 auto", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 28 }}>
+            {[
+              { title: "Basé sur les données réelles",   text: "Pas d'estimations — nous analysons les vrais temps des 16 000+ nageurs inscrits en NCAA/NAIA." },
+              { title: "Rang estimé dans l'équipe",      text: "Tu sauras si tu serais #2 ou #8 de l'équipe avant même de contacter un coach." },
+              { title: "Données académiques complètes",  text: "Taux d'admission, scolarité, salaire médian, spécialités — tout pour décider en connaissance de cause." },
+              { title: "Gratuit, sans inscription",      text: "Aucun compte requis. Résultats immédiats." },
+            ].map(item => (
+              <div key={item.title} style={{ display: "flex", gap: 14 }}>
+                <span style={{ color: C.maize, flexShrink: 0, fontSize: 18, marginTop: 2 }}>✅</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#fff", marginBottom: 6 }}>{item.title}</div>
+                  <p style={{ fontSize: 14, color: C.slate, lineHeight: 1.7, margin: 0 }}>{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA FINAL */}
+        <section style={{ backgroundColor: C.navy, padding: isMobile ? "60px 20px" : "80px 24px", textAlign: "center" }}>
+          <h2 style={{ ...BEBAS, fontSize: isMobile ? 32 : 48, color: "#fff", marginBottom: 16, letterSpacing: 1 }}>
+            PRÊT À TROUVER TON UNIVERSITÉ ?
+          </h2>
+          <p style={{ fontSize: 16, color: C.slate, marginBottom: 40, lineHeight: 1.7 }}>
+            Rejoins les athlètes français qui ont trouvé leur programme grâce à RISE.MATCH
+          </p>
+          <button
+            onClick={() => setAppState("form")}
+            style={{ ...BEBAS, fontSize: 18, letterSpacing: 1, backgroundColor: C.maize, color: C.navy, padding: "16px 40px", borderRadius: 8, border: "none", cursor: "pointer", transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "scale(1.02)" }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
+          >
+            TROUVER MON MATCH →
+          </button>
+        </section>
+      </div>
+    )
+  }
+
+  // ── FORM ───────────────────────────────────────────────────────────────────
+
+  if (appState === "form") {
+    const statesForRegions = selectedRegions.flatMap(r => REGIONS_CONFIG[r] ?? [])
+    const canSubmit = validEntries.length > 0 && (formMode === "simple" || selectedDivisions.length > 0)
+
+    const inputStyle: CSSProperties = {
+      backgroundColor: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.15)",
+      color: "#fff", borderRadius: 8, padding: "8px 10px", fontSize: 14, outline: "none", ...MONO,
+    }
+    const SL: CSSProperties = { ...BEBAS, fontSize: 13, color: C.maize, letterSpacing: 2, display: "block", marginBottom: 10 }
 
     return (
       <div style={{ backgroundColor: C.navy, minHeight: "100vh" }}>
-        <Navbar />
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px 80px" }}>
+        <Navbar onHome={() => setAppState("landing")} />
+        <div style={{ maxWidth: 700, margin: "0 auto", padding: isMobile ? "16px 16px 60px" : "28px 24px 80px" }}>
+          <Breadcrumb state="form" onHome={() => setAppState("landing")} />
 
-          {/* Back */}
-          <button
-            onClick={() => setResults(null)}
-            style={{ ...BEBAS, fontSize: 14, letterSpacing: 1, color: C.maize, background: "none", border: "none", cursor: "pointer", marginBottom: 24, padding: 0 }}
-          >
-            ← RETOUR AU FORMULAIRE
-          </button>
-
-          {/* Title */}
-          <h1 style={{ ...BEBAS, fontSize: 40, color: "#fff", letterSpacing: 1, marginBottom: 4, lineHeight: 1 }}>
-            TES {filtered.length} MEILLEURS MATCHS
-          </h1>
-
-          {/* Converted times */}
-          {Object.keys(results.scy_times).length > 0 && (
-            <p style={{ ...MONO, fontSize: 12, color: C.slate, marginBottom: 20, lineHeight: 1.8 }}>
-              Temps SCY :{" "}
-              {Object.entries(results.scy_times).map(([event, scy], i) => (
-                <span key={event}>{i > 0 && " · "}<span style={{ color: "#fff" }}>{event}</span> {formatScy(scy)}</span>
+          {/* Simple / Advanced toggle */}
+          <div style={{ marginTop: 24, marginBottom: 32 }}>
+            <div style={{ display: "flex", width: "fit-content", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden" }}>
+              {(["simple", "advanced"] as const).map(mode => (
+                <button key={mode} onClick={() => setFormMode(mode)} style={{
+                  ...BEBAS, fontSize: 15, letterSpacing: 1, padding: "10px 24px",
+                  backgroundColor: formMode === mode ? C.maize : "transparent",
+                  color: formMode === mode ? C.navy : C.slate,
+                  border: "none", cursor: "pointer", transition: "all 0.15s",
+                }}>
+                  {mode === "simple" ? "MODE SIMPLE" : "MODE AVANCÉ"}
+                </button>
               ))}
+            </div>
+            <p style={{ fontSize: 12, color: C.slate, marginTop: 8 }}>
+              {formMode === "simple"
+                ? "Genre + temps uniquement — résultats en 30 secondes"
+                : "Tous les filtres pour un matching précis"}
             </p>
-          )}
-
-          {/* Filter pills */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28, paddingBottom: 20, borderBottom: `1px solid ${C.navyMid}`, alignItems: "center" }}>
-            <span style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 1 }}>BUDGET</span>
-            <FilterPill active={filterBudget === null} onClick={() => setFilterBudget(null)}>Tous</FilterPill>
-            {[20000, 35000, 50000, 65000].map(v => (
-              <FilterPill key={v} active={filterBudget === v} onClick={() => setFilterBudget(filterBudget === v ? null : v)}>
-                &lt;${(v / 1000).toFixed(0)}k
-              </FilterPill>
-            ))}
-            <span style={{ width: 1, height: 20, backgroundColor: C.navyMid, margin: "0 4px" }} />
-            <span style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 1 }}>TAILLE</span>
-            {([{ l: "Petite", v: "small" }, { l: "Moyenne", v: "medium" }, { l: "Grande", v: "large" }] as const).map(opt => (
-              <FilterPill key={opt.v} active={filterSize === opt.v} onClick={() => setFilterSize(filterSize === opt.v ? null : opt.v)}>{opt.l}</FilterPill>
-            ))}
-            <span style={{ width: 1, height: 20, backgroundColor: C.navyMid, margin: "0 4px" }} />
-            {([{ l: "Public", v: "public" }, { l: "Privé", v: "private" }] as const).map(opt => (
-              <FilterPill key={opt.v} active={filterType === opt.v} onClick={() => setFilterType(filterType === opt.v ? null : opt.v)}>{opt.l}</FilterPill>
-            ))}
-            <span style={{ width: 1, height: 20, backgroundColor: C.navyMid, margin: "0 4px" }} />
-            <span style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 1 }}>NOTE MIN</span>
-            {(["A", "B", "C"] as const).map(g => (
-              <FilterPill key={g} active={filterGrade === g} onClick={() => setFilterGrade(filterGrade === g ? null : g)}>{g}</FilterPill>
-            ))}
           </div>
 
-          {filtered.length === 0 && (
-            <div style={{ textAlign: "center", padding: "48px 0", color: C.slate, ...MONO, fontSize: 13 }}>
-              Aucun résultat pour ces filtres.
+          <div style={{ backgroundColor: C.navyLight, borderRadius: 16, padding: isMobile ? "24px 18px" : "36px 32px", border: "1px solid rgba(255,203,5,0.15)" }}>
+
+            {/* Genre */}
+            <div style={{ marginBottom: 28 }}>
+              <label style={SL}>Genre</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <ToggleBtn active={gender === "M"} onClick={() => setGender("M")}>Homme</ToggleBtn>
+                <ToggleBtn active={gender === "F"} onClick={() => setGender("F")}>Femme</ToggleBtn>
+              </div>
             </div>
-          )}
 
-          {/* Cards */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {filtered.map((match, idx) => {
-              const sp    = match.score_sportif    ?? match.score ?? 0
-              const sa    = match.score_academique ?? 0
-              const sg    = match.score_geo        ?? 0
-              const total = match.score_total      ?? match.score ?? 0
-              const grade = match.academic_grade   ?? null
-              const rang  = match.rang_estime      ?? null
-              const b     = divisionBadge(match.division)
-              const isOpen = openRosters.has(match.team_id)
+            {/* Temps + SCY feedback */}
+            <div style={{ marginBottom: 28 }}>
+              <label style={SL}>Tes meilleurs temps</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {entries.map(entry => {
+                  const scy = convertToSCY(entry.event, entry.basin, entry.time)
+                  const isSCY = entry.basin === "SCY"
+                  const showFb = entry.time.trim() !== "" && (scy !== null || isSCY)
 
-              const rangColor = rang === null ? null : rang <= 4 ? C.green : rang <= 8 ? C.orange : C.slate
-              const rangBg    = rang === null ? null : rang <= 4 ? "rgba(46,204,113,0.1)" : rang <= 8 ? "rgba(243,156,18,0.1)" : "rgba(138,155,176,0.1)"
-
-              return (
-                <div
-                  key={match.team_id}
-                  onClick={() => typeof match.team_id === "number" && router.push(`/school/${match.team_id}`)}
-                  style={{
-                    backgroundColor: C.navyLight,
-                    borderRadius: 12,
-                    borderLeft: `4px solid ${C.maize}`,
-                    cursor: "pointer",
-                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                    padding: "20px 20px 16px",
-                    animation: `fadeInUp 0.4s ease ${idx * 0.05}s both`,
-                  }}
-                  onMouseEnter={e => {
-                    const el = e.currentTarget as HTMLDivElement
-                    el.style.transform = "translateY(-2px)"
-                    el.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)"
-                  }}
-                  onMouseLeave={e => {
-                    const el = e.currentTarget as HTMLDivElement
-                    el.style.transform = ""
-                    el.style.boxShadow = ""
-                  }}
-                >
-                  {/* ROW 1 — Header */}
-                  <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                    {/* Rank */}
-                    <div style={{ ...BEBAS, fontSize: 48, color: idx === 0 ? C.maize : idx < 3 ? C.slateLight : C.slate, lineHeight: 1, width: 58, flexShrink: 0, letterSpacing: -1 }}>
-                      #{idx + 1}
+                  return (
+                    <div key={entry.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {isMobile ? (
+                        <>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <select value={entry.event} onChange={e => updateEntry(entry.id, "event", e.target.value)} style={{ ...inputStyle, flex: 2, padding: "8px 6px" }}>
+                              {EVENTS.map(ev => <option key={ev.value} value={ev.value}>{ev.value}</option>)}
+                            </select>
+                            <select value={entry.basin} onChange={e => updateEntry(entry.id, "basin", e.target.value)} style={{ ...inputStyle, flex: 2, padding: "8px 6px" }}>
+                              {BASINS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+                            </select>
+                            <button onClick={() => removeEntry(entry.id)} style={{ width: 36, height: 38, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: C.slate, cursor: "pointer", fontSize: 18, flexShrink: 0 }}>×</button>
+                          </div>
+                          <div style={{ display: "flex", gap: 0, alignItems: "stretch" }}>
+                            <input type="text" value={entry.time} onChange={e => updateEntry(entry.id, "time", e.target.value)}
+                              placeholder={["50FR","50BA","50BR","50FL"].includes(entry.event) ? "22.54" : "1:02.41"}
+                              style={{ ...inputStyle, flex: 1, borderRadius: showFb ? "8px 0 0 8px" : 8 }} />
+                            {showFb && (
+                              <div style={{ display: "flex", alignItems: "center", padding: "0 10px", backgroundColor: isSCY ? "rgba(46,204,113,0.08)" : "rgba(255,203,5,0.08)", border: `1px solid ${isSCY ? "rgba(46,204,113,0.2)" : "rgba(255,203,5,0.2)"}`, borderLeft: `2px solid ${isSCY ? C.green : C.maize}`, borderRadius: "0 8px 8px 0" }}>
+                                <span style={{ ...MONO, fontSize: 11, color: isSCY ? C.green : C.maize, whiteSpace: "nowrap" }}>{isSCY ? "SCY ✓" : `≈ ${scy}`}</span>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <select value={entry.event} onChange={e => updateEntry(entry.id, "event", e.target.value)} style={{ ...inputStyle, width: 88, padding: "8px 6px" }}>
+                            {EVENTS.map(ev => <option key={ev.value} value={ev.value}>{ev.value}</option>)}
+                          </select>
+                          <select value={entry.basin} onChange={e => updateEntry(entry.id, "basin", e.target.value)} style={{ ...inputStyle, width: 98, padding: "8px 6px" }}>
+                            {BASINS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+                          </select>
+                          <input type="text" value={entry.time} onChange={e => updateEntry(entry.id, "time", e.target.value)}
+                            placeholder={["50FR","50BA","50BR","50FL"].includes(entry.event) ? "22.54" : "1:02.41"}
+                            style={{ ...inputStyle, width: 96, borderRadius: showFb ? "8px 0 0 8px" : 8 }} />
+                          {showFb ? (
+                            <div style={{ display: "flex", alignItems: "center", height: 38, paddingLeft: 10, paddingRight: 12, backgroundColor: isSCY ? "rgba(46,204,113,0.08)" : "rgba(255,203,5,0.08)", border: `1px solid ${isSCY ? "rgba(46,204,113,0.2)" : "rgba(255,203,5,0.2)"}`, borderLeft: `2px solid ${isSCY ? C.green : C.maize}`, borderRadius: "0 8px 8px 0", flex: 1, gap: 6 }}>
+                              <span style={{ ...MONO, fontSize: 12, color: isSCY ? C.green : C.maize, whiteSpace: "nowrap" }}>
+                                {isSCY ? "SCY natif ✓" : `≈ ${scy} SCY ✓`}
+                              </span>
+                            </div>
+                          ) : <div style={{ flex: 1 }} />}
+                          <button onClick={() => removeEntry(entry.id)} style={{ width: 32, height: 38, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: C.slate, cursor: "pointer", fontSize: 18, flexShrink: 0 }}>×</button>
+                        </div>
+                      )}
                     </div>
+                  )
+                })}
+              </div>
+              {entries.length < 6 && (
+                <button onClick={addEntry} style={{ marginTop: 10, ...BEBAS, fontSize: 12, letterSpacing: 1, color: C.maize, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  + AJOUTER UNE ÉPREUVE
+                </button>
+              )}
+              <p style={{ marginTop: 12, fontSize: 12, padding: "8px 12px", borderRadius: 8, backgroundColor: "rgba(202,93,93,0.1)", color: "#f87171", border: "1px solid rgba(202,93,93,0.3)", lineHeight: 1.5 }}>
+                🇨🇦 <strong>USports Canada :</strong> utilise <strong>400FR / 800FR / 1500FR</strong> au lieu de 500FR / 1000FR / 1650FR
+              </p>
+            </div>
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* Logo + country + name + score grid */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <UniversityLogo name={match.name} website={match.academic?.website ?? null} size={36} />
-                        <CountryBadge country={match.country} />
-                        <h2 style={{ fontSize: 18, fontWeight: 600, color: "#fff", margin: 0, flex: 1, minWidth: 100 }}>
-                          {match.name}
-                        </h2>
-                        {/* Score grid 2×2 */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 14px", flexShrink: 0 }}>
-                          {[
-                            { icon: "🏊", score: sp,    max: 50  },
-                            { icon: "🎓", score: sa,    max: 25  },
-                            { icon: "🌍", score: sg,    max: 15  },
-                            { icon: "⭐", score: total, max: 100 },
-                          ].map(({ icon, score, max }) => (
-                            <div key={icon} style={{ ...MONO, fontSize: 12, display: "flex", gap: 3, alignItems: "center" }}>
-                              <span>{icon}</span>
-                              <span style={{ color: C.maize, fontWeight: 700 }}>{score}</span>
-                              <span style={{ color: C.slate }}>/{max}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+            {/* ADVANCED ONLY */}
+            {formMode === "advanced" && (
+              <>
+                {/* Divisions */}
+                <div style={{ marginBottom: 28 }}>
+                  <label style={SL}>Divisions</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {DIVISIONS_UI.map(div => (
+                      <ToggleBtn key={div.api} active={selectedDivisions.includes(div.api)} onClick={() => toggleDivision(div.api)}>
+                        {div.label}{div.api === "division_10" ? " 🇨🇦" : ""}
+                      </ToggleBtn>
+                    ))}
+                  </div>
+                </div>
 
-                      {/* Division + grade + location row */}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, alignItems: "center" }}>
-                        <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "2px 6px", borderRadius: 4, backgroundColor: b.bg, color: b.color }}>
-                          {b.label}
-                        </span>
-                        {grade && grade !== "N/A" && (() => {
-                          const gs = gradeBadgeStyle(grade)
-                          return (
-                            <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "2px 6px", borderRadius: 4, backgroundColor: gs.bg, color: gs.color }}>
-                              🎓 {grade}
-                            </span>
-                          )
-                        })()}
-                        {match.academic?.pct_pell_grant != null && match.academic.pct_pell_grant > 30 && (
-                          <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "2px 6px", borderRadius: 4, backgroundColor: "rgba(46,204,113,0.1)", color: C.green }}>
-                            💰 Aides dispo
-                          </span>
-                        )}
-                        <span style={{ fontSize: 12, color: C.slate }}>
-                          {match.state}{match.city ? ` · ${match.city}` : ""}
-                        </span>
-                      </div>
+                {/* Spécialité */}
+                <div style={{ marginBottom: 28 }}>
+                  <label style={SL}>Spécialité souhaitée</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {SPECIALITES.map(sp => (
+                      <ToggleBtn key={sp.value} active={selectedSpecialite === sp.value} onClick={() => setSelectedSpecialite(sp.value)}>
+                        {sp.label}
+                      </ToggleBtn>
+                    ))}
+                  </div>
+                </div>
 
-                      {/* ROW 2 — Rang estimé */}
-                      {rang !== null && rang !== undefined && (
-                        <div style={{ marginTop: 10 }}>
-                          <span style={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            padding: "4px 10px",
-                            borderRadius: 6,
-                            backgroundColor: rangBg ?? "transparent",
-                            color: rangColor ?? C.slate,
-                            border: `1px solid ${rangColor ?? C.slate}`,
-                            display: "inline-block",
-                          }}>
-                            📍 Tu serais estimé #{rang} dans l&apos;équipe
-                          </span>
-                        </div>
-                      )}
+                {/* Localisation */}
+                <div style={{ marginBottom: 28 }}>
+                  <label style={SL}>Localisation souhaitée</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                    <ToggleBtn active={selectedRegions.length === 0} onClick={() => { setSelectedRegions([]); setSelectedStates([]) }}>Toutes les régions</ToggleBtn>
+                    {Object.entries(REGION_LABELS).map(([key, label]) => (
+                      <ToggleBtn key={key} active={selectedRegions.includes(key)} onClick={() => toggleRegion(key)}>{label}</ToggleBtn>
+                    ))}
+                  </div>
+                  {statesForRegions.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {statesForRegions.map(code => (
+                        <button key={code} title={STATE_NAMES[code]}
+                          onClick={() => setSelectedStates(prev => prev.includes(code) ? prev.filter(s => s !== code) : [...prev, code])}
+                          style={{ padding: "4px 8px", borderRadius: 5, border: `1px solid ${selectedStates.includes(code) ? C.maize : "rgba(255,255,255,0.12)"}`, backgroundColor: selectedStates.includes(code) ? "rgba(255,203,5,0.12)" : "transparent", color: selectedStates.includes(code) ? C.maize : C.slate, fontSize: 11, cursor: "pointer", ...MONO }}>
+                          {code}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-                      {/* ROW 3 — Stats académiques */}
-                      {match.academic && (
-                        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 8, padding: 12 }}>
-                          {[
-                            {
-                              icon: "🎓", label: "Admission",
-                              value: match.academic.admission_rate === null ? "—"
-                                : match.academic.admission_rate > 80 ? "Non sélectif"
-                                : `${match.academic.admission_rate}%`
-                            },
-                            {
-                              icon: "💰", label: "Scolarité",
-                              value: match.academic.tuition_out_state === null ? "—"
-                                : `$${match.academic.tuition_out_state.toLocaleString("en-US")}/an`
-                            },
-                            {
-                              icon: "👥", label: "Taille",
-                              value: match.academic.enrollment_total === null ? "—"
-                                : match.academic.enrollment_total < 3000
-                                ? `Petite (${match.academic.enrollment_total.toLocaleString("en-US")})`
-                                : match.academic.enrollment_total <= 10000
-                                ? `Moyenne (${match.academic.enrollment_total.toLocaleString("en-US")})`
-                                : `Grande (${match.academic.enrollment_total.toLocaleString("en-US")})`
-                            },
-                            {
-                              icon: "💼", label: "Salaire 10y",
-                              value: match.academic.median_earnings === null ? "—"
-                                : `$${match.academic.median_earnings.toLocaleString("en-US")}`
-                            },
-                            {
-                              icon: "📈", label: "Rétention",
-                              value: match.academic.retention_rate === null ? "—" : `${match.academic.retention_rate}%`
-                            },
-                            {
-                              icon: "💳", label: "Dette sortie",
-                              value: match.academic.grad_debt_median === null ? "—"
-                                : `$${match.academic.grad_debt_median.toLocaleString("en-US")}`
-                            },
-                          ].map(({ icon, label, value }) => (
-                            <div key={label}>
-                              <span style={{ fontSize: 11, color: C.slate }}>{icon} {label} </span>
-                              <span style={{ ...MONO, fontSize: 12, color: "#fff", fontWeight: 700 }}>{value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                {/* Âge */}
+                <div style={{ marginBottom: 28 }}>
+                  <label style={SL}>Âge de départ souhaité</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {[15, 16, 17, 18, 19, 20, 21].map(age => (
+                      <ToggleBtn key={age} active={selectedAge === age} onClick={() => setSelectedAge(age)}>
+                        {age === 21 ? "21+" : age}
+                      </ToggleBtn>
+                    ))}
+                  </div>
+                </div>
 
-                      {/* ROW 4 — Event ratios */}
-                      {Object.entries(match.events).length > 0 && (
-                        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }}>
-                          {Object.entries(match.events).map(([event, ev]) => {
-                            const pct    = ((ev.ratio - 1) * 100).toFixed(1)
-                            const faster = ev.ratio < 1
-                            const close  = ev.ratio <= 1.05
-                            const color  = faster ? C.green : close ? C.orange : C.slate
-                            return (
-                              <div key={event} style={{ display: "flex", alignItems: "center", gap: 10, ...MONO, fontSize: 12 }}>
-                                <span style={{ color: C.slate, width: 60, flexShrink: 0 }}>{event}</span>
-                                <span style={{ color: "#fff" }}>{formatScy(ev.athlete_time)}</span>
-                                <span style={{ color: C.slate }}>vs</span>
-                                <span style={{ color: C.slate }}>{formatScy(ev.team_best)}</span>
-                                <span style={{ color, fontWeight: 700 }}>
-                                  {faster ? "-" : "+"}{Math.abs(parseFloat(pct))}%
-                                </span>
-                                {ev.rang && <span style={{ color: C.slate }}>#{ev.rang}</span>}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-
-                      {/* ROW 5 — Roster collapsible */}
-                      {match.team_times && Object.keys(match.team_times).length > 0 && (
-                        <div style={{ marginTop: 12 }}>
-                          <button
-                            onClick={e => {
-                              e.stopPropagation()
-                              setOpenRosters(prev => {
-                                const next = new Set(prev)
-                                next.has(match.team_id) ? next.delete(match.team_id) : next.add(match.team_id)
-                                return next
-                              })
-                            }}
-                            style={{ ...BEBAS, fontSize: 12, color: C.maize, letterSpacing: 1, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 6 }}
-                          >
-                            <span style={{ fontSize: 9 }}>{isOpen ? "▼" : "▶"}</span>
-                            ROSTER — Meilleurs temps ({Object.keys(match.team_times).length} épreuves)
-                          </button>
-                          {isOpen && (
-                            <div style={{ marginTop: 8, backgroundColor: C.navy, borderRadius: 8, padding: "10px 12px" }}>
-                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px 12px" }}>
-                                {ROSTER_ORDER.filter(ev => match.team_times[ev]).map(ev => (
-                                  <div key={ev} style={{ display: "flex", gap: 6, ...MONO, fontSize: 12 }}>
-                                    <span style={{ color: C.slate, width: 48, flexShrink: 0 }}>{ev}</span>
-                                    <span style={{ color: C.slateLight }}>{match.team_times[ev].display}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* ROW 6 — Website */}
-                      {match.academic?.website && (
-                        <a
-                          href={match.academic.website.startsWith("http") ? match.academic.website : `https://${match.academic.website}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: C.slate, textDecoration: "none", transition: "color 0.15s" }}
-                          onMouseEnter={e => (e.currentTarget.style.color = C.maize)}
-                          onMouseLeave={e => (e.currentTarget.style.color = C.slate)}
-                        >
-                          🌐 Site officiel
-                        </a>
-                      )}
+                {/* Filtres optionnels */}
+                <div style={{ marginBottom: 28 }}>
+                  <label style={SL}>Filtres (optionnels)</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, color: C.slate, minWidth: 52 }}>Budget</span>
+                      <select value={filterBudget ?? ""} onChange={e => setFilterBudget(e.target.value === "" ? null : Number(e.target.value))} style={{ ...inputStyle, minWidth: 168 }}>
+                        {BUDGET_OPTIONS.map(opt => <option key={opt.label} value={opt.value ?? ""}>{opt.label}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, color: C.slate, minWidth: 52 }}>Taille</span>
+                      {([{ l: "Toutes", v: null }, { l: "Petite", v: "small" }, { l: "Moyenne", v: "medium" }, { l: "Grande", v: "large" }] as const).map(opt => (
+                        <ToggleBtn key={String(opt.v)} active={filterSize === opt.v} onClick={() => setFilterSize(opt.v)}>{opt.l}</ToggleBtn>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, color: C.slate, minWidth: 52 }}>Type</span>
+                      {([{ l: "Tous", v: null }, { l: "Public", v: "public" }, { l: "Privé", v: "private" }] as const).map(opt => (
+                        <ToggleBtn key={String(opt.v)} active={filterType === opt.v} onClick={() => setFilterType(opt.v)}>{opt.l}</ToggleBtn>
+                      ))}
                     </div>
                   </div>
                 </div>
-              )
-            })}
+              </>
+            )}
+
+            {error && (
+              <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, fontSize: 13, color: "#f87171", backgroundColor: "rgba(202,93,93,0.1)", border: "1px solid rgba(202,93,93,0.3)" }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={() => handleSubmit()}
+              disabled={!canSubmit}
+              style={{ width: "100%", padding: "16px 32px", borderRadius: 8, backgroundColor: canSubmit ? C.maize : C.navyMid, color: canSubmit ? C.navy : C.slate, ...BEBAS, fontSize: 20, letterSpacing: 1, border: "none", cursor: canSubmit ? "pointer" : "not-allowed", transition: "all 0.15s" }}
+              onMouseEnter={e => { if (canSubmit) { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "scale(1.01)" } }}
+              onMouseLeave={e => { if (canSubmit) e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
+            >
+              CALCULER MES MATCHS →
+            </button>
           </div>
         </div>
       </div>
     )
   }
 
-  // ── Form ──────────────────────────────────────────────────────────────────
+  // ── RESULTS ────────────────────────────────────────────────────────────────
 
-  const statesForRegions = selectedRegions.flatMap(r => REGIONS_CONFIG[r] ?? [])
-  const canSubmit = validEntries.length > 0 && selectedDivisions.length > 0
+  if (!results) return null
 
-  const inputStyle: CSSProperties = {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.15)",
-    color: "#fff",
-    borderRadius: 8,
-    padding: "8px 12px",
-    fontSize: 14,
-    outline: "none",
-    ...MONO,
-  }
+  const filtered = results.matches.filter(match => {
+    const ac = match.academic
+    if (!ac) return true
+    if (filterBudget !== null && ac.tuition_out_state !== null && ac.tuition_out_state >= filterBudget) return false
+    if (filterSize === "small"  && (ac.enrollment_total === null || ac.enrollment_total >= 3000))  return false
+    if (filterSize === "medium" && (ac.enrollment_total === null || ac.enrollment_total < 3000 || ac.enrollment_total > 10000)) return false
+    if (filterSize === "large"  && (ac.enrollment_total === null || ac.enrollment_total <= 10000)) return false
+    if (filterType === "public"  && ac.school_type !== "public")  return false
+    if (filterType === "private" && ac.school_type !== "private") return false
+    if (filterGrade && match.academic_grade && match.academic_grade !== "N/A") {
+      if (!gradeOk(match.academic_grade, filterGrade)) return false
+    }
+    return true
+  })
 
   return (
     <div style={{ backgroundColor: C.navy, minHeight: "100vh" }}>
-      <Navbar />
+      <Navbar onHome={() => setAppState("landing")} showNewSearch onNewSearch={() => setAppState("form")} />
 
-      {/* Hero */}
-      <div style={{
-        background: `repeating-linear-gradient(45deg, rgba(255,203,5,0.03) 0px, rgba(255,203,5,0.03) 1px, transparent 1px, transparent 8px), ${C.navy}`,
-        padding: "72px 24px 64px",
-        textAlign: "center",
-      }}>
-        <div style={{ display: "inline-flex", alignItems: "center", backgroundColor: C.navy, border: `1px solid ${C.maize}`, padding: "4px 16px", borderRadius: 4, marginBottom: 28 }}>
-          <span style={{ ...BEBAS, fontSize: 14, color: C.maize, letterSpacing: 3 }}>🏊 NCAA · NAIA · USports</span>
-        </div>
-        <h1 style={{ ...BEBAS, lineHeight: 0.95, margin: "0 0 20px" }}>
-          <div style={{ fontSize: "clamp(36px, 7vw, 72px)", color: "#fff" }}>TROUVE TON UNIVERSITÉ</div>
-          <div style={{ fontSize: "clamp(36px, 7vw, 72px)", color: C.maize }}>IDÉALE AUX ÉTATS-UNIS</div>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: isMobile ? "16px 16px 60px" : "28px 24px 80px" }}>
+        <Breadcrumb state="results" onHome={() => setAppState("landing")} onForm={() => setAppState("form")} />
+
+        <h1 style={{ ...BEBAS, fontSize: isMobile ? 28 : 40, color: "#fff", letterSpacing: 1, marginBottom: 4, lineHeight: 1, marginTop: 16 }}>
+          TES {filtered.length} MEILLEURS MATCHS
         </h1>
-        <p style={{ fontSize: 16, color: C.slateLight, marginBottom: 28, lineHeight: 1.6, maxWidth: 500, margin: "0 auto 28px" }}>
-          Algorithme de matching sportif × académique — 600+ universités analysées
-        </p>
-        <div style={{ width: 40, height: 2, backgroundColor: C.maize, margin: "0 auto" }} />
-      </div>
 
-      {/* Form container */}
-      <div style={{ maxWidth: 700, margin: "0 auto", padding: "0 20px 80px" }}>
-        <div style={{ backgroundColor: C.navyLight, borderRadius: 16, padding: "36px 32px", border: "1px solid rgba(255,203,5,0.15)" }}>
+        {Object.keys(results.scy_times).length > 0 && (
+          <p style={{ ...MONO, fontSize: 12, color: C.slate, marginBottom: 20, lineHeight: 1.8 }}>
+            Temps SCY :{" "}
+            {Object.entries(results.scy_times).map(([event, scy], i) => (
+              <span key={event}>{i > 0 && " · "}<span style={{ color: "#fff" }}>{event}</span> {formatScy(scy)}</span>
+            ))}
+          </p>
+        )}
 
-          {/* Âge */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={SECTION_LABEL}>Âge de départ souhaité</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {[15, 16, 17, 18, 19, 20, 21].map(age => (
-                <ToggleBtn key={age} active={selectedAge === age} onClick={() => setSelectedAge(age)}>
-                  {age === 21 ? "21+" : age}
-                </ToggleBtn>
-              ))}
-            </div>
+        {/* Filter pills */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 28, paddingBottom: 20, borderBottom: `1px solid ${C.navyMid}`, alignItems: "center" }}>
+          <span style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 1 }}>BUDGET</span>
+          <FilterPill active={filterBudget === null} onClick={() => setFilterBudget(null)}>Tous</FilterPill>
+          {[20000, 35000, 50000, 65000].map(v => (
+            <FilterPill key={v} active={filterBudget === v} onClick={() => setFilterBudget(filterBudget === v ? null : v)}>
+              &lt;${(v / 1000).toFixed(0)}k
+            </FilterPill>
+          ))}
+          <span style={{ width: 1, height: 20, backgroundColor: C.navyMid, margin: "0 2px" }} />
+          <span style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 1 }}>TAILLE</span>
+          {([{ l: "Petite", v: "small" }, { l: "Moyenne", v: "medium" }, { l: "Grande", v: "large" }] as const).map(opt => (
+            <FilterPill key={opt.v} active={filterSize === opt.v} onClick={() => setFilterSize(filterSize === opt.v ? null : opt.v)}>{opt.l}</FilterPill>
+          ))}
+          <span style={{ width: 1, height: 20, backgroundColor: C.navyMid, margin: "0 2px" }} />
+          {([{ l: "Public", v: "public" }, { l: "Privé", v: "private" }] as const).map(opt => (
+            <FilterPill key={opt.v} active={filterType === opt.v} onClick={() => setFilterType(filterType === opt.v ? null : opt.v)}>{opt.l}</FilterPill>
+          ))}
+          <span style={{ width: 1, height: 20, backgroundColor: C.navyMid, margin: "0 2px" }} />
+          <span style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 1 }}>NOTE MIN</span>
+          {(["A", "B", "C"] as const).map(g => (
+            <FilterPill key={g} active={filterGrade === g} onClick={() => setFilterGrade(filterGrade === g ? null : g)}>{g}</FilterPill>
+          ))}
+        </div>
+
+        {filtered.length === 0 && (
+          <div style={{ textAlign: "center", padding: "48px 0", color: C.slate, ...MONO, fontSize: 13 }}>
+            Aucun résultat pour ces filtres.
           </div>
+        )}
 
-          {/* Genre */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={SECTION_LABEL}>Genre</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <ToggleBtn active={gender === "M"} onClick={() => setGender("M")}>Homme</ToggleBtn>
-              <ToggleBtn active={gender === "F"} onClick={() => setGender("F")}>Femme</ToggleBtn>
-            </div>
-          </div>
+        {/* Cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {filtered.map((match, idx) => {
+            const sp    = match.score_sportif    ?? match.score ?? 0
+            const sa    = match.score_academique ?? 0
+            const sg    = match.score_geo        ?? 0
+            const total = match.score_total      ?? match.score ?? 0
+            const grade = match.academic_grade   ?? null
+            const rang  = match.rang_estime      ?? null
+            const b     = divisionBadge(match.division)
+            const isOpen = openRosters.has(match.team_id)
 
-          {/* Divisions */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={SECTION_LABEL}>Divisions</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {DIVISIONS_UI.map(div => (
-                <ToggleBtn key={div.api} active={selectedDivisions.includes(div.api)} onClick={() => toggleDivision(div.api)}>
-                  {div.label}{div.api === "division_10" ? " 🇨🇦" : ""}
-                </ToggleBtn>
-              ))}
-            </div>
-          </div>
+            const rangColor = rang === null ? null : rang <= 4 ? C.green : rang <= 8 ? C.orange : C.slate
+            const rangBg    = rang === null ? null : rang <= 4 ? "rgba(46,204,113,0.1)" : rang <= 8 ? "rgba(243,156,18,0.1)" : "rgba(138,155,176,0.1)"
 
-          {/* Spécialité */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={SECTION_LABEL}>Spécialité souhaitée</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {SPECIALITES.map(sp => (
-                <ToggleBtn key={sp.value} active={selectedSpecialite === sp.value} onClick={() => setSelectedSpecialite(sp.value)}>
-                  {sp.label}
-                </ToggleBtn>
-              ))}
-            </div>
-          </div>
-
-          {/* Localisation */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={SECTION_LABEL}>Localisation souhaitée</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-              <ToggleBtn active={selectedRegions.length === 0} onClick={() => { setSelectedRegions([]); setSelectedStates([]) }}>
-                Toutes les régions
-              </ToggleBtn>
-              {Object.entries(REGION_LABELS).map(([key, label]) => (
-                <ToggleBtn key={key} active={selectedRegions.includes(key)} onClick={() => toggleRegion(key)}>
-                  {label}
-                </ToggleBtn>
-              ))}
-            </div>
-            {statesForRegions.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {statesForRegions.map(code => (
-                  <button
-                    key={code}
-                    onClick={() => setSelectedStates(prev =>
-                      prev.includes(code) ? prev.filter(s => s !== code) : [...prev, code]
-                    )}
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 5,
-                      border: `1px solid ${selectedStates.includes(code) ? C.maize : "rgba(255,255,255,0.12)"}`,
-                      backgroundColor: selectedStates.includes(code) ? "rgba(255,203,5,0.12)" : "transparent",
-                      color: selectedStates.includes(code) ? C.maize : C.slate,
-                      fontSize: 11,
-                      cursor: "pointer",
-                      ...MONO,
-                    }}
-                    title={STATE_NAMES[code]}
-                  >
-                    {code}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Filtres optionnels */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={SECTION_LABEL}>Filtres (optionnels)</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: C.slate, minWidth: 52 }}>Budget</span>
-                <select
-                  value={filterBudget ?? ""}
-                  onChange={e => setFilterBudget(e.target.value === "" ? null : Number(e.target.value))}
-                  style={{ ...inputStyle, minWidth: 168 }}
-                >
-                  {BUDGET_OPTIONS.map(opt => <option key={opt.label} value={opt.value ?? ""}>{opt.label}</option>)}
-                </select>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: C.slate, minWidth: 52 }}>Taille</span>
-                {([{ l: "Toutes", v: null }, { l: "Petite", v: "small" }, { l: "Moyenne", v: "medium" }, { l: "Grande", v: "large" }] as const).map(opt => (
-                  <ToggleBtn key={String(opt.v)} active={filterSize === opt.v} onClick={() => setFilterSize(opt.v)}>{opt.l}</ToggleBtn>
-                ))}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: C.slate, minWidth: 52 }}>Type</span>
-                {([{ l: "Tous", v: null }, { l: "Public", v: "public" }, { l: "Privé", v: "private" }] as const).map(opt => (
-                  <ToggleBtn key={String(opt.v)} active={filterType === opt.v} onClick={() => setFilterType(opt.v)}>{opt.l}</ToggleBtn>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Temps */}
-          <div style={{ marginBottom: 28 }}>
-            <label style={SECTION_LABEL}>Tes meilleurs temps</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {entries.map(entry => (
-                <div key={entry.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <select
-                    value={entry.event}
-                    onChange={e => updateEntry(entry.id, "event", e.target.value)}
-                    style={{ ...inputStyle, width: 92, padding: "8px 6px" }}
-                  >
-                    {EVENTS.map(ev => <option key={ev.value} value={ev.value}>{ev.value}</option>)}
-                  </select>
-                  <select
-                    value={entry.basin}
-                    onChange={e => updateEntry(entry.id, "basin", e.target.value)}
-                    style={{ ...inputStyle, width: 102, padding: "8px 6px" }}
-                  >
-                    {BASINS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                  </select>
-                  <input
-                    type="text"
-                    value={entry.time}
-                    onChange={e => updateEntry(entry.id, "time", e.target.value)}
-                    placeholder={["50FR", "50BA", "50BR", "50FL"].includes(entry.event) ? "22.54" : "1:02.41"}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <button
-                    onClick={() => removeEntry(entry.id)}
-                    style={{ width: 32, height: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: C.slate, cursor: "pointer", fontSize: 18, flexShrink: 0 }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-            {entries.length < 6 && (
-              <button
-                onClick={addEntry}
-                style={{ marginTop: 10, ...BEBAS, fontSize: 12, letterSpacing: 1, color: C.maize, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 6 }}
+            return (
+              <div
+                key={match.team_id}
+                onClick={() => typeof match.team_id === "number" && router.push(`/school/${match.team_id}`)}
+                style={{ backgroundColor: C.navyLight, borderRadius: 12, borderLeft: `4px solid ${C.maize}`, cursor: "pointer", transition: "transform 0.2s ease, box-shadow 0.2s ease", padding: isMobile ? "14px 12px 12px" : "20px 20px 16px", animation: `fadeInUp 0.4s ease ${idx * 0.05}s both` }}
+                onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = "translateY(-2px)"; el.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)" }}
+                onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.transform = ""; el.style.boxShadow = "" }}
               >
-                + AJOUTER UNE ÉPREUVE
-              </button>
-            )}
-            {selectedDivisions.includes("division_10") && (
-              <p style={{ marginTop: 12, fontSize: 12, padding: "8px 12px", borderRadius: 8, backgroundColor: "rgba(202,93,93,0.1)", color: "#f87171", border: "1px solid rgba(202,93,93,0.3)", lineHeight: 1.5 }}>
-                🇨🇦 <strong>USports Canada :</strong> utilise <strong>400FR / 800FR / 1500FR</strong> au lieu de 500FR / 1000FR / 1650FR
-              </p>
-            )}
-          </div>
+                <div style={{ display: "flex", gap: isMobile ? 8 : 12, alignItems: "flex-start" }}>
+                  {/* Rank */}
+                  <div style={{ ...BEBAS, fontSize: isMobile ? 32 : 48, color: idx === 0 ? C.maize : idx < 3 ? C.slateLight : C.slate, lineHeight: 1, width: isMobile ? 40 : 58, flexShrink: 0, letterSpacing: -1 }}>
+                    #{idx + 1}
+                  </div>
 
-          {error && (
-            <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, fontSize: 13, color: "#f87171", backgroundColor: "rgba(202,93,93,0.1)", border: "1px solid rgba(202,93,93,0.3)" }}>
-              {error}
-            </div>
-          )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Name row + score grid */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <UniversityLogo name={match.name} website={match.academic?.website ?? null} size={isMobile ? 26 : 34} />
+                      <CountryBadge country={match.country} />
+                      <h2 style={{ fontSize: isMobile ? 14 : 17, fontWeight: 600, color: "#fff", margin: 0, flex: 1, minWidth: 80 }}>{match.name}</h2>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px", flexShrink: 0 }}>
+                        {[{ icon: "🏊", s: sp, m: 50 }, { icon: "🎓", s: sa, m: 25 }, { icon: "🌍", s: sg, m: 15 }, { icon: "⭐", s: total, m: 100 }].map(({ icon, s, m }) => (
+                          <div key={icon} style={{ ...MONO, fontSize: isMobile ? 10 : 12, display: "flex", gap: 3, alignItems: "center" }}>
+                            <span>{icon}</span><span style={{ color: C.maize, fontWeight: 700 }}>{s}</span><span style={{ color: C.slate }}>/{m}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            style={{
-              width: "100%",
-              padding: "16px 32px",
-              borderRadius: 8,
-              backgroundColor: canSubmit ? C.maize : C.navyMid,
-              color: canSubmit ? C.navy : C.slate,
-              ...BEBAS,
-              fontSize: 20,
-              letterSpacing: 1,
-              border: "none",
-              cursor: canSubmit ? "pointer" : "not-allowed",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={e => { if (canSubmit) (e.currentTarget.style.backgroundColor = C.maizeDark); if (canSubmit) (e.currentTarget.style.transform = "scale(1.01)") }}
-            onMouseLeave={e => { if (canSubmit) (e.currentTarget.style.backgroundColor = C.maize); (e.currentTarget.style.transform = "") }}
-          >
-            CALCULER MES MATCHS →
-          </button>
+                    {/* Division + grade + location */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, alignItems: "center" }}>
+                      <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "2px 6px", borderRadius: 4, backgroundColor: b.bg, color: b.color }}>{b.label}</span>
+                      {grade && grade !== "N/A" && (() => { const gs = gradeBadgeStyle(grade); return <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "2px 6px", borderRadius: 4, backgroundColor: gs.bg, color: gs.color }}>🎓 {grade}</span> })()}
+                      {match.academic?.pct_pell_grant != null && match.academic.pct_pell_grant > 30 && (
+                        <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, padding: "2px 6px", borderRadius: 4, backgroundColor: "rgba(46,204,113,0.1)", color: C.green }}>💰 Aides dispo</span>
+                      )}
+                      <span style={{ fontSize: 12, color: C.slate }}>{match.state}{match.city ? ` · ${match.city}` : ""}</span>
+                    </div>
+
+                    {/* Rang estimé */}
+                    {rang !== null && rang !== undefined && (
+                      <div style={{ marginTop: 10 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 6, backgroundColor: rangBg ?? "transparent", color: rangColor ?? C.slate, border: `1px solid ${rangColor ?? C.slate}`, display: "inline-block" }}>
+                          📍 Tu serais estimé #{rang} dans l&apos;équipe
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Stats académiques */}
+                    {match.academic && (
+                      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 8, padding: isMobile ? 10 : 12 }}>
+                        {[
+                          { icon: "🎓", label: "Admission",  value: match.academic.admission_rate === null ? "—" : match.academic.admission_rate > 80 ? "Non sélectif" : `${match.academic.admission_rate}%` },
+                          { icon: "💰", label: "Scolarité",  value: match.academic.tuition_out_state === null ? "—" : `$${match.academic.tuition_out_state.toLocaleString("en-US")}/an` },
+                          { icon: "👥", label: "Taille",     value: match.academic.enrollment_total === null ? "—" : match.academic.enrollment_total < 3000 ? `Petite (${match.academic.enrollment_total.toLocaleString("en-US")})` : match.academic.enrollment_total <= 10000 ? `Moyenne (${match.academic.enrollment_total.toLocaleString("en-US")})` : `Grande (${match.academic.enrollment_total.toLocaleString("en-US")})` },
+                          { icon: "💼", label: "Salaire 10y",value: match.academic.median_earnings === null ? "—" : `$${match.academic.median_earnings.toLocaleString("en-US")}` },
+                          { icon: "📈", label: "Rétention",  value: match.academic.retention_rate === null ? "—" : `${match.academic.retention_rate}%` },
+                          { icon: "💳", label: "Dette",      value: match.academic.grad_debt_median === null ? "—" : `$${match.academic.grad_debt_median.toLocaleString("en-US")}` },
+                        ].map(({ icon, label, value }) => (
+                          <div key={label}>
+                            <span style={{ fontSize: 11, color: C.slate }}>{icon} {label} </span>
+                            <span style={{ ...MONO, fontSize: isMobile ? 10 : 12, color: "#fff", fontWeight: 700 }}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Event ratios */}
+                    {Object.entries(match.events).length > 0 && (
+                      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 4, overflowX: "auto" }}>
+                        {Object.entries(match.events).map(([event, ev]) => {
+                          const pct = ((ev.ratio - 1) * 100).toFixed(1)
+                          const faster = ev.ratio < 1
+                          const color = faster ? C.green : ev.ratio <= 1.05 ? C.orange : C.slate
+                          return (
+                            <div key={event} style={{ display: "flex", alignItems: "center", gap: 10, ...MONO, fontSize: isMobile ? 11 : 12 }}>
+                              <span style={{ color: C.slate, width: 60, flexShrink: 0 }}>{event}</span>
+                              <span style={{ color: "#fff" }}>{formatScy(ev.athlete_time)}</span>
+                              <span style={{ color: C.slate }}>vs</span>
+                              <span style={{ color: C.slate }}>{formatScy(ev.team_best)}</span>
+                              <span style={{ color, fontWeight: 700 }}>{faster ? "-" : "+"}{Math.abs(parseFloat(pct))}%</span>
+                              {ev.rang && <span style={{ color: C.slate }}>#{ev.rang}</span>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Roster toggle */}
+                    {match.team_times && Object.keys(match.team_times).length > 0 && (
+                      <div style={{ marginTop: 12 }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); setOpenRosters(prev => { const n = new Set(prev); n.has(match.team_id) ? n.delete(match.team_id) : n.add(match.team_id); return n }) }}
+                          style={{ ...BEBAS, fontSize: 12, color: C.maize, letterSpacing: 1, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 6 }}
+                        >
+                          <span style={{ fontSize: 9 }}>{isOpen ? "▼" : "▶"}</span>
+                          ROSTER — Meilleurs temps ({Object.keys(match.team_times).length} épreuves)
+                        </button>
+                        {isOpen && (
+                          <div style={{ marginTop: 8, backgroundColor: C.navy, borderRadius: 8, padding: "10px 12px" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px 12px" }}>
+                              {ROSTER_ORDER.filter(ev => match.team_times[ev]).map(ev => (
+                                <div key={ev} style={{ display: "flex", gap: 6, ...MONO, fontSize: 12 }}>
+                                  <span style={{ color: C.slate, width: 48, flexShrink: 0 }}>{ev}</span>
+                                  <span style={{ color: C.slateLight }}>{match.team_times[ev].display}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Website */}
+                    {match.academic?.website && (
+                      <a
+                        href={match.academic.website.startsWith("http") ? match.academic.website : `https://${match.academic.website}`}
+                        target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{ display: "inline-block", marginTop: 12, fontSize: 12, color: C.slate, textDecoration: "none", transition: "color 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.color = C.maize)}
+                        onMouseLeave={e => (e.currentTarget.style.color = C.slate)}
+                      >
+                        🌐 Site officiel
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
