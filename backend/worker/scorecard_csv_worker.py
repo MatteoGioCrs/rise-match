@@ -28,7 +28,7 @@ def safe_float(val):
     try:
         return float(val)
     except:
-        return None
+        return 0.0
 
 def safe_int(val):
     try:
