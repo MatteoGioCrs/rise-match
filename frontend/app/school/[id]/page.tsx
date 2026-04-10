@@ -196,10 +196,10 @@ export default function SchoolPage() {
               </div>
             ))}
           </div>
-          {t.school_type && (
+          {(t.school_type as string | null) && (
             <p className="mt-2 text-xs text-gray-500">
               Type : <span className="text-gray-300">{t.school_type === "public" ? "Université publique" : t.school_type === "private" ? "Université privée" : t.school_type as string}</span>
-              {t.pct_pell_grant !== null && (
+              {(t.pct_pell_grant as number | null) !== null && (
                 <> · Aide financière (Pell) : <span className="text-gray-300">{t.pct_pell_grant as number}% des étudiants</span></>
               )}
             </p>
