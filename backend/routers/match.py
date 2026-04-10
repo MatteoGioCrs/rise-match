@@ -141,7 +141,9 @@ async def compute_match(body: dict):
             if team_ids:
                 academic_rows = await conn.fetch("""
                     SELECT swimcloud_id, admission_rate, tuition_out_state,
-                           enrollment_total, median_earnings, school_type, scorecard_name
+                           enrollment_total, median_earnings, school_type, scorecard_name,
+                           retention_rate, pct_pell_grant, grad_debt_median,
+                           latitude, longitude, website
                     FROM school_data
                     WHERE swimcloud_id = ANY($1)
                 """, team_ids)
@@ -158,6 +160,12 @@ async def compute_match(body: dict):
                             'enrollment_total': ac['enrollment_total'],
                             'median_earnings': ac['median_earnings'],
                             'school_type': ac['school_type'],
+                            'retention_rate': round(ac['retention_rate'] * 100, 1) if ac['retention_rate'] else None,
+                            'pct_pell_grant': round(ac['pct_pell_grant'] * 100, 1) if ac['pct_pell_grant'] else None,
+                            'grad_debt_median': ac['grad_debt_median'],
+                            'latitude': ac['latitude'],
+                            'longitude': ac['longitude'],
+                            'website': ac['website'],
                         }
                     else:
                         data['academic'] = None
