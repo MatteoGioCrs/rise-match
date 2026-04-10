@@ -135,6 +135,33 @@ async def compute_match(body: dict):
                     "ratio": round(ratio, 3)
                 }
 
+        # Récupérer les données académiques pour les équipes dans les résultats
+        if scores:
+            team_ids = [v['team_id'] for v in scores.values() if isinstance(v['team_id'], int)]
+            if team_ids:
+                academic_rows = await conn.fetch("""
+                    SELECT swimcloud_id, admission_rate, tuition_out_state,
+                           enrollment_total, median_earnings, school_type, scorecard_name
+                    FROM school_data
+                    WHERE swimcloud_id = ANY($1)
+                """, team_ids)
+
+                academic_data = {row['swimcloud_id']: dict(row) for row in academic_rows}
+
+                for tid, data in scores.items():
+                    real_id = data['team_id']
+                    if isinstance(real_id, int) and real_id in academic_data:
+                        ac = academic_data[real_id]
+                        data['academic'] = {
+                            'admission_rate': round(ac['admission_rate'] * 100, 1) if ac['admission_rate'] else None,
+                            'tuition_out_state': ac['tuition_out_state'],
+                            'enrollment_total': ac['enrollment_total'],
+                            'median_earnings': ac['median_earnings'],
+                            'school_type': ac['school_type'],
+                        }
+                    else:
+                        data['academic'] = None
+
     finally:
         await conn.close()
 
