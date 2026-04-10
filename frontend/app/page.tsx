@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 
 const API_URL = "https://rise-match-production.up.railway.app/api/match"
 
@@ -205,6 +206,7 @@ function UniversityLogo({ name, website }: { name: string; website: string | nul
 let nextId = 1
 
 export default function Page() {
+  const router = useRouter()
   const [gender, setGender] = useState<"M" | "F">("M")
   const [selectedDivisions, setSelectedDivisions] = useState<string[]>(DIVISIONS_UI.map(d => d.api))
   const [entries, setEntries] = useState<TimeEntry[]>([
@@ -405,7 +407,8 @@ export default function Page() {
             <div
               key={match.team_id}
               className="rounded-xl p-5"
-              style={{ backgroundColor: "#111827", border: "1px solid #1e2d45" }}
+              style={{ backgroundColor: "#111827", border: "1px solid #1e2d45", cursor: "pointer" }}
+              onClick={() => typeof match.team_id === "number" && router.push(`/school/${match.team_id}`)}
             >
               <div className="flex items-start gap-4">
                 <span
@@ -570,6 +573,7 @@ export default function Page() {
                       rel="noopener noreferrer"
                       className="mt-3 inline-flex items-center gap-1.5 text-xs transition-colors"
                       style={{ color: "#4b6fa8" }}
+                      onClick={e => e.stopPropagation()}
                       onMouseOver={e => (e.currentTarget.style.color = "#60a5fa")}
                       onMouseOut={e => (e.currentTarget.style.color = "#4b6fa8")}
                     >

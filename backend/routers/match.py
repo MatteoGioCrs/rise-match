@@ -14,6 +14,89 @@ USPORTS_EVENT_MAP = {
     '1650FR': '1500FR_LCM',
 }
 
+@router.get("/api/school/{team_id}")
+async def get_school(team_id: int):
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        team = await conn.fetchrow("""
+            SELECT t.*, sd.admission_rate, sd.tuition_out_state,
+                   sd.enrollment_total, sd.median_earnings, sd.school_type,
+                   sd.retention_rate, sd.pct_pell_grant, sd.grad_debt_median,
+                   sd.latitude, sd.longitude, sd.website, sd.scorecard_name
+            FROM sc_teams t
+            LEFT JOIN school_data sd ON sd.swimcloud_id = t.swimcloud_id
+            WHERE t.swimcloud_id = $1
+        """, team_id)
+
+        if not team:
+            return {"error": "École non trouvée"}
+
+        times_m = await conn.fetch("""
+            SELECT s.event_code, MIN(s.time_seconds) as best_time,
+                   sw.name as swimmer_name
+            FROM sc_swimmers sw
+            JOIN sc_times s ON s.swimmer_swimcloud_id = sw.swimcloud_id
+            WHERE sw.team_swimcloud_id = $1 AND sw.gender = 'M'
+            AND sw.is_departing = false
+            GROUP BY s.event_code, sw.name
+            ORDER BY s.event_code, best_time
+        """, team_id)
+
+        times_f = await conn.fetch("""
+            SELECT s.event_code, MIN(s.time_seconds) as best_time,
+                   sw.name as swimmer_name
+            FROM sc_swimmers sw
+            JOIN sc_times s ON s.swimmer_swimcloud_id = sw.swimcloud_id
+            WHERE sw.team_swimcloud_id = $1 AND sw.gender = 'F'
+            AND sw.is_departing = false
+            GROUP BY s.event_code, sw.name
+            ORDER BY s.event_code, best_time
+        """, team_id)
+
+        counts = await conn.fetchrow("""
+            SELECT
+                COUNT(*) FILTER (WHERE gender = 'M' AND is_departing = false) as men,
+                COUNT(*) FILTER (WHERE gender = 'F' AND is_departing = false) as women,
+                COUNT(*) FILTER (WHERE is_departing = true) as departing
+            FROM sc_swimmers
+            WHERE team_swimcloud_id = $1
+        """, team_id)
+
+        def format_time(t):
+            mins = int(t // 60)
+            secs = t % 60
+            return f"{mins}:{secs:05.2f}" if mins > 0 else f"{secs:.2f}"
+
+        def process_times(rows):
+            by_event = {}
+            for row in rows:
+                ev = row['event_code']
+                if ev not in by_event:
+                    by_event[ev] = {
+                        'best_seconds': round(row['best_time'], 2),
+                        'best_display': format_time(row['best_time']),
+                        'best_swimmer': row['swimmer_name']
+                    }
+            return by_event
+
+        team_dict = dict(team)
+        if team_dict.get('admission_rate'):
+            team_dict['admission_rate'] = round(team_dict['admission_rate'] * 100, 1)
+        if team_dict.get('retention_rate'):
+            team_dict['retention_rate'] = round(team_dict['retention_rate'] * 100, 1)
+        if team_dict.get('pct_pell_grant'):
+            team_dict['pct_pell_grant'] = round(team_dict['pct_pell_grant'] * 100, 1)
+
+        return {
+            "team": team_dict,
+            "roster_counts": dict(counts),
+            "times_men": process_times(times_m),
+            "times_women": process_times(times_f),
+        }
+    finally:
+        await conn.close()
+
+
 @router.post("/api/match")
 async def compute_match(body: dict):
     times_input = body.get("times", [])
