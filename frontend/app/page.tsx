@@ -35,28 +35,47 @@ const BASINS = [
 ]
 
 const DIVISIONS_UI = [
-  { label: "NCAA D1",     api: "division_1"  },
-  { label: "NCAA D2",     api: "division_2"  },
-  { label: "NCAA D3",     api: "division_3"  },
-  { label: "NAIA",        api: "division_4"  },
-  { label: "NJCAA",       api: "division_5"  },
-  { label: "USports 🇨🇦", api: "division_10" },
+  { label: "NCAA D1",  api: "division_1"  },
+  { label: "NCAA D2",  api: "division_2"  },
+  { label: "NCAA D3",  api: "division_3"  },
+  { label: "NAIA",     api: "division_4"  },
+  { label: "NJCAA",    api: "division_5"  },
+  { label: "USports",  api: "division_10" },
+]
+
+const BUDGET_OPTIONS = [
+  { label: "Tous les budgets", value: null },
+  { label: "< $20,000",        value: 20000 },
+  { label: "< $35,000",        value: 35000 },
+  { label: "< $50,000",        value: 50000 },
+  { label: "< $65,000",        value: 65000 },
 ]
 
 function divisionBadge(api: string): { label: string; bg: string; color: string } {
   switch (api) {
-    case "division_1":  return { label: "NCAA D1",     bg: "#1a2f50", color: "#60a5fa" }
-    case "division_2":  return { label: "NCAA D2",     bg: "#1a2f50", color: "#60a5fa" }
-    case "division_3":  return { label: "NCAA D3",     bg: "#1a2f50", color: "#60a5fa" }
-    case "division_4":  return { label: "NAIA",        bg: "#1a3020", color: "#4ade80" }
-    case "division_5":  return { label: "NJCAA",       bg: "#2d1e0f", color: "#fb923c" }
-    case "division_10": return { label: "🇨🇦 Canada", bg: "#2d1515", color: "#f87171" }
-    default:            return { label: api,            bg: "#1a2236", color: "#94a3b8" }
+    case "division_1":  return { label: "NCAA D1",  bg: "#1a2f50", color: "#60a5fa" }
+    case "division_2":  return { label: "NCAA D2",  bg: "#1a2f50", color: "#60a5fa" }
+    case "division_3":  return { label: "NCAA D3",  bg: "#1a2f50", color: "#60a5fa" }
+    case "division_4":  return { label: "NAIA",     bg: "#1a3020", color: "#4ade80" }
+    case "division_5":  return { label: "NJCAA",    bg: "#2d1e0f", color: "#fb923c" }
+    case "division_10": return { label: "USports",  bg: "#2d1515", color: "#f87171" }
+    default:            return { label: api,         bg: "#1a2236", color: "#94a3b8" }
   }
 }
 
-function countryFlag(country: string): string {
-  return country === "CA" ? "🇨🇦 " : "🇺🇸 "
+function CountryBadge({ country }: { country: string }) {
+  const isCA = country === "CA"
+  return (
+    <span
+      className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0"
+      style={{
+        backgroundColor: isCA ? "#3b0a0a" : "#0a1a3b",
+        color: isCA ? "#fca5a5" : "#93c5fd",
+      }}
+    >
+      {isCA ? "CA" : "US"}
+    </span>
+  )
 }
 
 interface TimeEntry {
@@ -122,48 +141,50 @@ function formatScy(seconds: number): string {
   return seconds.toFixed(2)
 }
 
-function divisionLabel(api: string): string {
-  return DIVISIONS_UI.find(d => d.api === api)?.label ?? api
-}
-
-function extractDomain(url: string | null): string | null {
-  if (!url) return null
-  try {
-    const u = url.startsWith("http") ? url : `https://${url}`
-    return new URL(u).hostname.replace(/^www\./, "")
-  } catch {
-    return null
-  }
+function getLogoUrl(website: string | null): string | null {
+  if (!website) return null
+  const domain = website.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]
+  if (!domain) return null
+  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
 }
 
 function UniversityLogo({ name, website }: { name: string; website: string | null }) {
-  const domain = extractDomain(website)
+  const logoUrl = getLogoUrl(website)
   const initials = name.split(/\s+/).filter(w => /^[A-Z]/.test(w)).slice(0, 2).map(w => w[0]).join("")
 
-  if (!domain) {
+  if (!logoUrl) {
     return (
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
-        style={{ backgroundColor: "#1a2236", color: "#60a5fa" }}>
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
+        style={{ backgroundColor: "#1a2236", color: "#60a5fa" }}
+      >
         {initials}
       </div>
     )
   }
 
   return (
-    <img
-      src={`https://logo.clearbit.com/${domain}`}
-      alt={name}
-      width={32}
-      height={32}
-      className="w-8 h-8 rounded-lg object-contain shrink-0"
-      style={{ backgroundColor: "#fff" }}
-      onError={(e) => {
-        const target = e.currentTarget
-        target.style.display = "none"
-        const fallback = target.nextElementSibling as HTMLElement | null
-        if (fallback) fallback.style.display = "flex"
-      }}
-    />
+    <div className="relative w-8 h-8 shrink-0">
+      <img
+        src={logoUrl}
+        alt={name}
+        width={32}
+        height={32}
+        className="w-8 h-8 rounded-lg object-contain"
+        style={{ backgroundColor: "#f8fafc" }}
+        onError={(e) => {
+          e.currentTarget.style.display = "none"
+          const fallback = e.currentTarget.nextElementSibling as HTMLElement | null
+          if (fallback) fallback.style.display = "flex"
+        }}
+      />
+      <div
+        className="w-8 h-8 rounded-lg items-center justify-center shrink-0 text-xs font-bold absolute inset-0"
+        style={{ backgroundColor: "#1a2236", color: "#60a5fa", display: "none" }}
+      >
+        {initials}
+      </div>
+    </div>
   )
 }
 
@@ -179,6 +200,11 @@ export default function Page() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<ApiResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Filtres client-side
+  const [filterBudget, setFilterBudget] = useState<number | null>(null)
+  const [filterSize, setFilterSize] = useState<"small" | "medium" | "large" | null>(null)
+  const [filterType, setFilterType] = useState<"public" | "private" | null>(null)
 
   function toggleDivision(api: string) {
     setSelectedDivisions(prev =>
@@ -244,23 +270,36 @@ export default function Page() {
   }
 
   if (results) {
+    // Filtrage client-side
+    const filtered = results.matches.filter(match => {
+      const ac = match.academic
+      if (!ac) return true
+      if (filterBudget !== null && ac.tuition_out_state !== null && ac.tuition_out_state >= filterBudget) return false
+      if (filterSize === "small"  && (ac.enrollment_total === null || ac.enrollment_total >= 3000)) return false
+      if (filterSize === "medium" && (ac.enrollment_total === null || ac.enrollment_total < 3000 || ac.enrollment_total > 10000)) return false
+      if (filterSize === "large"  && (ac.enrollment_total === null || ac.enrollment_total <= 10000)) return false
+      if (filterType === "public"  && ac.school_type !== "public") return false
+      if (filterType === "private" && ac.school_type !== "private") return false
+      return true
+    })
+
     return (
       <div className="min-h-screen px-4 py-8 max-w-3xl mx-auto" style={{ backgroundColor: "#0A0E1A" }}>
         <button
           onClick={() => setResults(null)}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 text-sm transition-colors"
+          className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 text-sm transition-colors"
         >
           <span>&#8592;</span> Retour
         </button>
 
         <h1 className="text-2xl font-bold text-white mb-1">
-          {results.matches.length > 0
-            ? `Tes ${Math.min(results.matches.length, 20)} meilleurs matchs`
+          {filtered.length > 0
+            ? `${filtered.length} match${filtered.length > 1 ? "s" : ""} trouvé${filtered.length > 1 ? "s" : ""}`
             : "Aucun match trouvé"}
         </h1>
 
         {Object.keys(results.scy_times).length > 0 && (
-          <p className="text-gray-400 text-sm mb-8">
+          <p className="text-gray-400 text-sm mb-5">
             Temps convertis en SCY :{" "}
             {Object.entries(results.scy_times).map(([event, scy], i) => (
               <span key={event}>
@@ -271,17 +310,83 @@ export default function Page() {
           </p>
         )}
 
-        {results.matches.length === 0 && (
+        {/* Filtres résultats */}
+        <div className="mb-6 p-4 rounded-xl" style={{ backgroundColor: "#0d1525", border: "1px solid #1e2d45" }}>
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Filtrer les résultats</p>
+          <div className="flex flex-col gap-3">
+            {/* Budget */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs text-gray-500 w-16 shrink-0">Budget</span>
+              <select
+                value={filterBudget ?? ""}
+                onChange={e => setFilterBudget(e.target.value === "" ? null : Number(e.target.value))}
+                className="rounded-lg text-xs px-2 py-1.5 outline-none"
+                style={{ backgroundColor: "#111827", border: "1px solid #1e2d45", color: "#e8edf5" }}
+              >
+                {BUDGET_OPTIONS.map(opt => (
+                  <option key={opt.label} value={opt.value ?? ""}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Taille */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-500 w-16 shrink-0">Taille</span>
+              {([
+                { label: "Toutes",       value: null     },
+                { label: "Petite (<3k)", value: "small"  },
+                { label: "Moyenne",      value: "medium" },
+                { label: "Grande (>10k)",value: "large"  },
+              ] as const).map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => setFilterSize(opt.value)}
+                  className="px-2.5 py-1 rounded text-xs font-semibold transition-all"
+                  style={{
+                    backgroundColor: filterSize === opt.value ? "#1a3050" : "#111827",
+                    color: filterSize === opt.value ? "#60a5fa" : "#6b7a99",
+                    border: `1px solid ${filterSize === opt.value ? "#2E75B6" : "#1e2d45"}`,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {/* Type */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-500 w-16 shrink-0">Type</span>
+              {([
+                { label: "Tous",   value: null      },
+                { label: "Public", value: "public"  },
+                { label: "Privé",  value: "private" },
+              ] as const).map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => setFilterType(opt.value)}
+                  className="px-2.5 py-1 rounded text-xs font-semibold transition-all"
+                  style={{
+                    backgroundColor: filterType === opt.value ? "#1a3050" : "#111827",
+                    color: filterType === opt.value ? "#60a5fa" : "#6b7a99",
+                    border: `1px solid ${filterType === opt.value ? "#2E75B6" : "#1e2d45"}`,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {filtered.length === 0 && (
           <div
             className="rounded-xl p-6 text-center text-gray-400"
             style={{ backgroundColor: "#111827", border: "1px solid #1e2d45" }}
           >
-            Aucune université ne correspond à ces critères. Essaie avec moins de divisions ou des temps plus lents.
+            Aucun résultat pour ces filtres. Essaie d&apos;élargir les critères.
           </div>
         )}
 
         <div className="flex flex-col gap-4">
-          {results.matches.map((match, idx) => (
+          {filtered.map((match, idx) => (
             <div
               key={match.team_id}
               className="rounded-xl p-5"
@@ -295,19 +400,12 @@ export default function Page() {
                   #{idx + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  {/* Header: logo + name + score badge */}
+                  {/* Header: logo + country badge + name + score badge */}
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2 min-w-0">
                       <UniversityLogo name={match.name} website={match.academic?.website ?? null} />
-                      <div
-                        className="w-8 h-8 rounded-lg items-center justify-center shrink-0 text-xs font-bold hidden"
-                        style={{ backgroundColor: "#1a2236", color: "#60a5fa" }}
-                      >
-                        {match.name.split(/\s+/).filter((w: string) => /^[A-Z]/.test(w)).slice(0, 2).map((w: string) => w[0]).join("")}
-                      </div>
-                      <h2 className="text-lg font-bold text-white leading-tight">
-                        {countryFlag(match.country)}{match.name}
-                      </h2>
+                      <CountryBadge country={match.country} />
+                      <h2 className="text-lg font-bold text-white leading-tight">{match.name}</h2>
                     </div>
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
@@ -317,7 +415,7 @@ export default function Page() {
                     </span>
                   </div>
 
-                  {/* Division badge + location + pell grant badge */}
+                  {/* Division badge + pell grant badge + location */}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {(() => {
                       const b = divisionBadge(match.division)
@@ -327,13 +425,13 @@ export default function Page() {
                         </span>
                       )
                     })()}
-                    {match.academic?.pct_pell_grant !== null && match.academic?.pct_pell_grant !== undefined && match.academic.pct_pell_grant > 30 && (
+                    {match.academic?.pct_pell_grant != null && match.academic.pct_pell_grant > 30 && (
                       <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: "#0d2d1a", color: "#4ade80" }}>
                         💰 Aides dispo
                       </span>
                     )}
                     <span className="text-gray-500 text-xs">
-                      {match.state ? `${match.state}` : ""}{match.city ? ` · ${match.city}` : ""}
+                      {match.state}{match.city ? ` · ${match.city}` : ""}
                     </span>
                   </div>
 
@@ -490,10 +588,76 @@ export default function Page() {
                   border: `1px solid ${checked ? "#2E75B6" : "#1e2d45"}`,
                 }}
               >
-                {div.label}
+                {div.label}{div.api === "division_10" ? " 🇨🇦" : ""}
               </button>
             )
           })}
+        </div>
+      </div>
+
+      {/* Filtres optionnels */}
+      <div className="mb-7">
+        <label className="block text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">Filtres (optionnels)</label>
+        <div className="flex flex-col gap-3">
+          {/* Budget */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-gray-500 w-16 shrink-0">Budget</span>
+            <select
+              value={filterBudget ?? ""}
+              onChange={e => setFilterBudget(e.target.value === "" ? null : Number(e.target.value))}
+              className="rounded-lg text-xs px-2 py-1.5 outline-none"
+              style={{ backgroundColor: "#111827", border: "1px solid #1e2d45", color: "#e8edf5" }}
+            >
+              {BUDGET_OPTIONS.map(opt => (
+                <option key={opt.label} value={opt.value ?? ""}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          {/* Taille */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 w-16 shrink-0">Taille</span>
+            {([
+              { label: "Toutes",        value: null     },
+              { label: "Petite (<3k)",  value: "small"  },
+              { label: "Moyenne",       value: "medium" },
+              { label: "Grande (>10k)", value: "large"  },
+            ] as const).map(opt => (
+              <button
+                key={opt.label}
+                onClick={() => setFilterSize(opt.value)}
+                className="px-2.5 py-1 rounded text-xs font-semibold transition-all"
+                style={{
+                  backgroundColor: filterSize === opt.value ? "#1a3050" : "#111827",
+                  color: filterSize === opt.value ? "#60a5fa" : "#6b7a99",
+                  border: `1px solid ${filterSize === opt.value ? "#2E75B6" : "#1e2d45"}`,
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {/* Type */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 w-16 shrink-0">Type</span>
+            {([
+              { label: "Tous",   value: null      },
+              { label: "Public", value: "public"  },
+              { label: "Privé",  value: "private" },
+            ] as const).map(opt => (
+              <button
+                key={opt.label}
+                onClick={() => setFilterType(opt.value)}
+                className="px-2.5 py-1 rounded text-xs font-semibold transition-all"
+                style={{
+                  backgroundColor: filterType === opt.value ? "#1a3050" : "#111827",
+                  color: filterType === opt.value ? "#60a5fa" : "#6b7a99",
+                  border: `1px solid ${filterType === opt.value ? "#2E75B6" : "#1e2d45"}`,
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
