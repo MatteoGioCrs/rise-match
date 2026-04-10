@@ -55,8 +55,8 @@ function divisionBadge(api: string): { label: string; bg: string; color: string 
   }
 }
 
-function countryFlag(api: string): string {
-  return api === "division_10" ? "🇨🇦 " : "🇺🇸 "
+function countryFlag(country: string): string {
+  return country === "CA" ? "🇨🇦 " : "🇺🇸 "
 }
 
 interface TimeEntry {
@@ -72,14 +72,24 @@ interface EventMatch {
   ratio: number
 }
 
+interface AcademicData {
+  admission_rate: number | null
+  tuition_out_state: number | null
+  enrollment_total: number | null
+  median_earnings: number | null
+  school_type: string | null
+}
+
 interface MatchResult {
-  team_id: number
+  team_id: number | string
   name: string
   division: string
   state: string
   city: string
+  country: string
   score: number
   events: Record<string, EventMatch>
+  academic: AcademicData | null
 }
 
 interface ApiResponse {
@@ -240,7 +250,7 @@ export default function Page() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <h2 className="text-lg font-bold text-white leading-tight">
-                      {countryFlag(match.division)}{match.name}
+                      {countryFlag(match.country)}{match.name}
                     </h2>
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
@@ -262,6 +272,49 @@ export default function Page() {
                       {match.state ? `${match.state}` : ""}{match.city ? ` · ${match.city}` : ""}
                     </span>
                   </div>
+
+                  {match.academic && (
+                    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: "#0d1525" }}>
+                      <div>
+                        <span className="text-gray-500">🎓 Admission </span>
+                        <span className="text-gray-200 font-semibold">
+                          {match.academic.admission_rate === null
+                            ? "—"
+                            : match.academic.admission_rate > 80
+                            ? "Non sélectif"
+                            : `${match.academic.admission_rate}%`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">💰 Scolarité </span>
+                        <span className="text-gray-200 font-semibold">
+                          {match.academic.tuition_out_state === null
+                            ? "—"
+                            : `$${match.academic.tuition_out_state.toLocaleString("en-US")}/an`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">👥 Taille </span>
+                        <span className="text-gray-200 font-semibold">
+                          {match.academic.enrollment_total === null
+                            ? "—"
+                            : match.academic.enrollment_total < 3000
+                            ? `Petite (${match.academic.enrollment_total.toLocaleString("en-US")})`
+                            : match.academic.enrollment_total <= 10000
+                            ? `Moyenne (${match.academic.enrollment_total.toLocaleString("en-US")})`
+                            : `Grande (${match.academic.enrollment_total.toLocaleString("en-US")})`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">💼 Salaire </span>
+                        <span className="text-gray-200 font-semibold">
+                          {match.academic.median_earnings === null
+                            ? "—"
+                            : `$${match.academic.median_earnings.toLocaleString("en-US")}`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {Object.entries(match.events).length > 0 && (
                     <div className="mt-3 flex flex-col gap-1.5">
