@@ -78,6 +78,12 @@ interface AcademicData {
   enrollment_total: number | null
   median_earnings: number | null
   school_type: string | null
+  retention_rate: number | null
+  pct_pell_grant: number | null
+  grad_debt_median: number | null
+  latitude: number | null
+  longitude: number | null
+  website: string | null
 }
 
 interface MatchResult {
@@ -118,6 +124,47 @@ function formatScy(seconds: number): string {
 
 function divisionLabel(api: string): string {
   return DIVISIONS_UI.find(d => d.api === api)?.label ?? api
+}
+
+function extractDomain(url: string | null): string | null {
+  if (!url) return null
+  try {
+    const u = url.startsWith("http") ? url : `https://${url}`
+    return new URL(u).hostname.replace(/^www\./, "")
+  } catch {
+    return null
+  }
+}
+
+function UniversityLogo({ name, website }: { name: string; website: string | null }) {
+  const domain = extractDomain(website)
+  const initials = name.split(/\s+/).filter(w => /^[A-Z]/.test(w)).slice(0, 2).map(w => w[0]).join("")
+
+  if (!domain) {
+    return (
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
+        style={{ backgroundColor: "#1a2236", color: "#60a5fa" }}>
+        {initials}
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={`https://logo.clearbit.com/${domain}`}
+      alt={name}
+      width={32}
+      height={32}
+      className="w-8 h-8 rounded-lg object-contain shrink-0"
+      style={{ backgroundColor: "#fff" }}
+      onError={(e) => {
+        const target = e.currentTarget
+        target.style.display = "none"
+        const fallback = target.nextElementSibling as HTMLElement | null
+        if (fallback) fallback.style.display = "flex"
+      }}
+    />
+  )
 }
 
 let nextId = 1
@@ -248,10 +295,20 @@ export default function Page() {
                   #{idx + 1}
                 </span>
                 <div className="flex-1 min-w-0">
+                  {/* Header: logo + name + score badge */}
                   <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <h2 className="text-lg font-bold text-white leading-tight">
-                      {countryFlag(match.country)}{match.name}
-                    </h2>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <UniversityLogo name={match.name} website={match.academic?.website ?? null} />
+                      <div
+                        className="w-8 h-8 rounded-lg items-center justify-center shrink-0 text-xs font-bold hidden"
+                        style={{ backgroundColor: "#1a2236", color: "#60a5fa" }}
+                      >
+                        {match.name.split(/\s+/).filter((w: string) => /^[A-Z]/.test(w)).slice(0, 2).map((w: string) => w[0]).join("")}
+                      </div>
+                      <h2 className="text-lg font-bold text-white leading-tight">
+                        {countryFlag(match.country)}{match.name}
+                      </h2>
+                    </div>
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
                       style={{ backgroundColor: "#1a2236", color: "#2E75B6" }}
@@ -259,7 +316,9 @@ export default function Page() {
                       {match.score} pt{match.score > 1 ? "s" : ""}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+
+                  {/* Division badge + location + pell grant badge */}
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {(() => {
                       const b = divisionBadge(match.division)
                       return (
@@ -268,11 +327,17 @@ export default function Page() {
                         </span>
                       )
                     })()}
+                    {match.academic?.pct_pell_grant !== null && match.academic?.pct_pell_grant !== undefined && match.academic.pct_pell_grant > 30 && (
+                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{ backgroundColor: "#0d2d1a", color: "#4ade80" }}>
+                        💰 Aides dispo
+                      </span>
+                    )}
                     <span className="text-gray-500 text-xs">
                       {match.state ? `${match.state}` : ""}{match.city ? ` · ${match.city}` : ""}
                     </span>
                   </div>
 
+                  {/* Academic metrics grid 2x3 */}
                   {match.academic && (
                     <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: "#0d1525" }}>
                       <div>
@@ -313,9 +378,24 @@ export default function Page() {
                             : `$${match.academic.median_earnings.toLocaleString("en-US")}`}
                         </span>
                       </div>
+                      <div>
+                        <span className="text-gray-500">📈 Rétention </span>
+                        <span className="text-gray-200 font-semibold">
+                          {match.academic.retention_rate === null ? "—" : `${match.academic.retention_rate}%`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">💳 Dette </span>
+                        <span className="text-gray-200 font-semibold">
+                          {match.academic.grad_debt_median === null
+                            ? "—"
+                            : `$${match.academic.grad_debt_median.toLocaleString("en-US")}`}
+                        </span>
+                      </div>
                     </div>
                   )}
 
+                  {/* Sport event ratios */}
                   {Object.entries(match.events).length > 0 && (
                     <div className="mt-3 flex flex-col gap-1.5">
                       {Object.entries(match.events).map(([event, ev]) => {
@@ -337,6 +417,21 @@ export default function Page() {
                         )
                       })}
                     </div>
+                  )}
+
+                  {/* Website link */}
+                  {match.academic?.website && (
+                    <a
+                      href={match.academic.website.startsWith("http") ? match.academic.website : `https://${match.academic.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs transition-colors"
+                      style={{ color: "#4b6fa8" }}
+                      onMouseOver={e => (e.currentTarget.style.color = "#60a5fa")}
+                      onMouseOut={e => (e.currentTarget.style.color = "#4b6fa8")}
+                    >
+                      🌐 Visiter le site officiel
+                    </a>
                   )}
                 </div>
               </div>
