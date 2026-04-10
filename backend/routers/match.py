@@ -179,6 +179,48 @@ async def compute_match(body: dict):
         reverse=True
     )
 
+    # Récupérer tous les temps des équipes dans le top 20
+    top_ids = [r['team_id'] for r in results[:20] if isinstance(r['team_id'], int)]
+
+    if top_ids:
+        conn2 = await asyncpg.connect(os.environ["DATABASE_URL"])
+        all_times_rows = await conn2.fetch("""
+            SELECT t.swimcloud_id, s.event_code, MIN(s.time_seconds) as best_time
+            FROM sc_teams t
+            JOIN sc_swimmers sw ON sw.team_swimcloud_id = t.swimcloud_id
+            JOIN sc_times s ON s.swimmer_swimcloud_id = sw.swimcloud_id
+            WHERE t.swimcloud_id = ANY($1)
+            AND sw.gender = $2
+            AND sw.is_departing = false
+            GROUP BY t.swimcloud_id, s.event_code
+            ORDER BY t.swimcloud_id, s.event_code
+        """, top_ids, gender)
+        await conn2.close()
+
+        team_all_times = {}
+        for row in all_times_rows:
+            tid = row['swimcloud_id']
+            if tid not in team_all_times:
+                team_all_times[tid] = {}
+            t = row['best_time']
+            mins = int(t // 60)
+            secs = t % 60
+            formatted = f"{mins}:{secs:05.2f}" if mins > 0 else f"{secs:.2f}"
+            team_all_times[tid][row['event_code']] = {
+                'seconds': round(t, 2),
+                'display': formatted
+            }
+
+        for r in results[:20]:
+            tid = r['team_id']
+            if isinstance(tid, int) and tid in team_all_times:
+                r['team_times'] = team_all_times[tid]
+            else:
+                r['team_times'] = {}
+    else:
+        for r in results[:20]:
+            r['team_times'] = {}
+
     return {
         "scy_times": {k: round(v, 2) for k, v in scy_times.items()},
         "matches": results[:20]

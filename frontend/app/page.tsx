@@ -43,6 +43,14 @@ const DIVISIONS_UI = [
   { label: "USports",  api: "division_10" },
 ]
 
+const ROSTER_ORDER = [
+  "50FR","100FR","200FR","500FR","1000FR","1650FR",
+  "50BA","100BA","200BA",
+  "50BR","100BR","200BR",
+  "50FL","100FL","200FL",
+  "200IM","400IM",
+]
+
 const BUDGET_OPTIONS = [
   { label: "Tous les budgets", value: null },
   { label: "< $20,000",        value: 20000 },
@@ -105,6 +113,11 @@ interface AcademicData {
   website: string | null
 }
 
+interface TeamTime {
+  seconds: number
+  display: string
+}
+
 interface MatchResult {
   team_id: number | string
   name: string
@@ -115,6 +128,7 @@ interface MatchResult {
   score: number
   events: Record<string, EventMatch>
   academic: AcademicData | null
+  team_times: Record<string, TeamTime>
 }
 
 interface ApiResponse {
@@ -202,6 +216,7 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null)
 
   // Filtres client-side
+  const [openRosters, setOpenRosters] = useState<Set<number | string>>(new Set())
   const [filterBudget, setFilterBudget] = useState<number | null>(null)
   const [filterSize, setFilterSize] = useState<"small" | "medium" | "large" | null>(null)
   const [filterType, setFilterType] = useState<"public" | "private" | null>(null)
@@ -490,6 +505,36 @@ export default function Page() {
                             : `$${match.academic.grad_debt_median.toLocaleString("en-US")}`}
                         </span>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Roster — collapsible */}
+                  {match.team_times && Object.keys(match.team_times).length > 0 && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => setOpenRosters(prev => {
+                          const next = new Set(prev)
+                          next.has(match.team_id) ? next.delete(match.team_id) : next.add(match.team_id)
+                          return next
+                        })}
+                        className="flex items-center gap-1.5 text-xs font-semibold transition-colors w-full text-left"
+                        style={{ color: "#4b6fa8" }}
+                      >
+                        <span style={{ fontSize: "10px" }}>{openRosters.has(match.team_id) ? "▼" : "▶"}</span>
+                        ROSTER — Meilleurs temps de l&apos;équipe ({Object.keys(match.team_times).length} épreuves)
+                      </button>
+                      {openRosters.has(match.team_id) && (
+                        <div className="mt-2 rounded-lg px-3 py-2.5" style={{ backgroundColor: "#0a1020" }}>
+                          <div className="grid grid-cols-3 gap-x-3 gap-y-1">
+                            {ROSTER_ORDER.filter(ev => match.team_times[ev]).map(ev => (
+                              <div key={ev} className="flex items-center gap-1.5 text-xs font-mono">
+                                <span className="text-gray-500 w-12 shrink-0">{ev}</span>
+                                <span className="text-gray-300">{match.team_times[ev].display}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
