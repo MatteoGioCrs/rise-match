@@ -32,6 +32,8 @@ def safe_float(val):
 
 def safe_int(val):
     try:
+        if val in ('PrivacySuppressed', 'NULL', 'NA', '', None):
+            return None
         return int(float(val))
     except:
         return None

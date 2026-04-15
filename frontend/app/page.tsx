@@ -352,6 +352,77 @@ function CounterStat({ target, suffix, label }: { target: number; suffix: string
   )
 }
 
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+
+function Tooltip({ content, children }: { content: React.ReactNode; children: React.ReactNode }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", cursor: "help" }}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+      onTouchStart={() => setVisible(v => !v)}
+    >
+      {children}
+      {visible && (
+        <div style={{ position: "absolute", bottom: "130%", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1E3A5F", border: "1px solid rgba(255,203,5,0.3)", borderRadius: 8, padding: "12px 16px", width: 280, zIndex: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", pointerEvents: "none" }}>
+          {content}
+          <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "6px solid rgba(255,203,5,0.3)" }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const TOOLTIP_SPORT = (
+  <div>
+    <p style={{ ...BEBAS, color: "#FFCB05", letterSpacing: 1, marginBottom: 8, margin: "0 0 8px" }}>SCORE SPORTIF /50</p>
+    <ul style={{ fontSize: 12, color: "#B8C8D8", lineHeight: 1.6, margin: 0, paddingLeft: 16 }}>
+      <li>#2-#4 dans l&apos;équipe → 25 pts <span style={{ color: "#FFCB05" }}>(zone idéale)</span></li>
+      <li>#1 dans l&apos;équipe → 15 pts</li>
+      <li>Plus de 4% plus rapide que le #1 → 5 pts <span style={{ color: "#F39C12" }}>(trop dominant)</span></li>
+      <li>#5-#8 → 15 pts · #9+ → 2 pts</li>
+      <li>Top 4 sur 2+ épreuves du même style → +5 pts relay</li>
+      <li>Nageurs partants devant toi → +5 pts</li>
+    </ul>
+  </div>
+)
+
+const TOOLTIP_ACAD = (
+  <div>
+    <p style={{ ...BEBAS, color: "#FFCB05", letterSpacing: 1, margin: "0 0 8px" }}>SCORE ACADÉMIQUE /25</p>
+    <ul style={{ fontSize: 12, color: "#B8C8D8", lineHeight: 1.6, margin: 0, paddingLeft: 16 }}>
+      <li>Spécialité souhaitée disponible → +15 pts</li>
+      <li>Taux de rétention &gt; 85% → +4 pts</li>
+      <li>Salaire médian &gt; $70k → +4 pts</li>
+      <li>École sélective (admission &lt; 30%) → +2 pts</li>
+    </ul>
+  </div>
+)
+
+const TOOLTIP_GEO = (
+  <div>
+    <p style={{ ...BEBAS, color: "#FFCB05", letterSpacing: 1, margin: "0 0 8px" }}>SCORE GÉOGRAPHIQUE /15</p>
+    <ul style={{ fontSize: 12, color: "#B8C8D8", lineHeight: 1.6, margin: 0, paddingLeft: 16 }}>
+      <li>École dans ta région souhaitée → 15 pts</li>
+      <li>École dans ton état exact → 15 pts</li>
+      <li>Aucun filtre géo sélectionné → 15 pts auto</li>
+    </ul>
+  </div>
+)
+
+const TOOLTIP_TOTAL = (
+  <div>
+    <p style={{ ...BEBAS, color: "#FFCB05", letterSpacing: 1, margin: "0 0 8px" }}>SCORE GLOBAL /100</p>
+    <p style={{ fontSize: 12, color: "#B8C8D8", lineHeight: 1.6, margin: "0 0 8px" }}>
+      Somme : sportif (50) + académique (25) + géographique (15) + bonus (10 max).
+    </p>
+    <p style={{ fontSize: 11, color: "#8A9BB0", margin: 0 }}>
+      Un score élevé = l&apos;école correspond à ton profil sportif ET à tes critères académiques/géographiques.
+    </p>
+  </div>
+)
+
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
 interface TimeEntry { id: number; event: string; basin: string; time: string }
@@ -782,7 +853,8 @@ export default function Page() {
                 </button>
               )}
               <p style={{ marginTop: 12, fontSize: 12, padding: "8px 12px", borderRadius: 8, backgroundColor: "rgba(202,93,93,0.1)", color: "#f87171", border: "1px solid rgba(202,93,93,0.3)", lineHeight: 1.5 }}>
-                🇨🇦 <strong>USports Canada :</strong> utilise <strong>400FR / 800FR / 1500FR</strong> au lieu de 500FR / 1000FR / 1650FR
+                <span style={{ display: "inline-block", padding: "1px 5px", fontSize: 10, fontWeight: 700, background: "#c0392b", color: "#fff", borderRadius: 3, fontFamily: "Inter, sans-serif", verticalAlign: "middle", lineHeight: 1.4, marginRight: 6 }}>CA</span>
+                <strong>USports Canada :</strong> utilise <strong>400FR / 800FR / 1500FR</strong> au lieu de 500FR / 1000FR / 1650FR
               </p>
             </div>
 
@@ -795,7 +867,9 @@ export default function Page() {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {DIVISIONS_UI.map(div => (
                       <ToggleBtn key={div.api} active={selectedDivisions.includes(div.api)} onClick={() => toggleDivision(div.api)}>
-                        {div.label}{div.api === "division_10" ? " 🇨🇦" : ""}
+                        {div.label}{div.api === "division_10" && (
+                          <span style={{ display: "inline-block", marginLeft: 6, padding: "1px 5px", fontSize: 10, fontWeight: 700, background: "#c0392b", color: "#fff", borderRadius: 3, fontFamily: "Inter, sans-serif", verticalAlign: "middle", lineHeight: 1.4 }}>CA</span>
+                        )}
                       </ToggleBtn>
                     ))}
                   </div>
@@ -1001,10 +1075,18 @@ export default function Page() {
                       <CountryBadge country={match.country} />
                       <h2 style={{ fontSize: isMobile ? 14 : 17, fontWeight: 600, color: "#fff", margin: 0, flex: 1, minWidth: 80 }}>{match.name}</h2>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px", flexShrink: 0 }}>
-                        {[{ icon: "🏊", s: sp, m: 50 }, { icon: "🎓", s: sa, m: 25 }, { icon: "🌍", s: sg, m: 15 }, { icon: "⭐", s: total, m: 100 }].map(({ icon, s, m }) => (
-                          <div key={icon} style={{ ...MONO, fontSize: isMobile ? 10 : 12, display: "flex", gap: 3, alignItems: "center" }}>
-                            <span>{icon}</span><span style={{ color: C.maize, fontWeight: 700 }}>{s}</span><span style={{ color: C.slate }}>/{m}</span>
-                          </div>
+                        {([
+                          { icon: "🏊", label: "Sportif",    s: sp,    m: 50,  tip: TOOLTIP_SPORT },
+                          { icon: "🎓", label: "Académique", s: sa,    m: 25,  tip: TOOLTIP_ACAD  },
+                          { icon: "🌍", label: "Géo",        s: sg,    m: 15,  tip: TOOLTIP_GEO   },
+                          { icon: "⭐", label: "Total",      s: total, m: 100, tip: TOOLTIP_TOTAL },
+                        ] as const).map(({ icon, label, s, m, tip }) => (
+                          <Tooltip key={icon} content={tip}>
+                            <div style={{ ...MONO, fontSize: isMobile ? 10 : 12, display: "flex", gap: 3, alignItems: "center" }}>
+                              <span>{icon}</span><span style={{ color: C.maize, fontWeight: 700 }}>{s}</span><span style={{ color: C.slate }}>/{m}</span>
+                              <span style={{ fontSize: 9, color: C.slate, marginLeft: 1 }}>ⓘ</span>
+                            </div>
+                          </Tooltip>
                         ))}
                       </div>
                     </div>
@@ -1023,8 +1105,11 @@ export default function Page() {
                     {rang !== null && rang !== undefined && (
                       <div style={{ marginTop: 10 }}>
                         <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 6, backgroundColor: rangBg ?? "transparent", color: rangColor ?? C.slate, border: `1px solid ${rangColor ?? C.slate}`, display: "inline-block" }}>
-                          📍 Tu serais estimé #{rang} dans l&apos;équipe
+                          📍 Rang estimé #{rang} dans l&apos;équipe · basé sur le roster actuel
                         </span>
+                        <p style={{ fontSize: 11, color: C.slate, marginTop: 4, marginBottom: 0, fontStyle: "italic" }}>
+                          *Estimation basée sur les temps actuels. Les nouvelles recrues peuvent modifier ce classement.
+                        </p>
                       </div>
                     )}
 
@@ -1032,16 +1117,19 @@ export default function Page() {
                     {match.academic && (
                       <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 8, padding: isMobile ? 10 : 12 }}>
                         {[
-                          { icon: "🎓", label: "Admission",  value: match.academic.admission_rate === null ? "—" : match.academic.admission_rate > 80 ? "Non sélectif" : `${match.academic.admission_rate}%` },
-                          { icon: "💰", label: "Scolarité",  value: match.academic.tuition_out_state === null ? "—" : `$${match.academic.tuition_out_state.toLocaleString("en-US")}/an` },
-                          { icon: "👥", label: "Taille",     value: match.academic.enrollment_total === null ? "—" : match.academic.enrollment_total < 3000 ? `Petite (${match.academic.enrollment_total.toLocaleString("en-US")})` : match.academic.enrollment_total <= 10000 ? `Moyenne (${match.academic.enrollment_total.toLocaleString("en-US")})` : `Grande (${match.academic.enrollment_total.toLocaleString("en-US")})` },
-                          { icon: "💼", label: "Salaire 10y",value: match.academic.median_earnings === null ? "—" : `$${match.academic.median_earnings.toLocaleString("en-US")}` },
-                          { icon: "📈", label: "Rétention",  value: match.academic.retention_rate === null ? "—" : `${match.academic.retention_rate}%` },
-                          { icon: "💳", label: "Dette",      value: match.academic.grad_debt_median === null ? "—" : `$${match.academic.grad_debt_median.toLocaleString("en-US")}` },
+                          { icon: "🎓", label: "Admission",  value: match.academic.admission_rate === null ? null : match.academic.admission_rate > 80 ? "Non sélectif" : `${match.academic.admission_rate}%` },
+                          { icon: "💰", label: "Scolarité",  value: match.academic.tuition_out_state === null ? null : `$${match.academic.tuition_out_state.toLocaleString("en-US")}/an` },
+                          { icon: "👥", label: "Taille",     value: match.academic.enrollment_total === null ? null : match.academic.enrollment_total < 3000 ? `Petite (${match.academic.enrollment_total.toLocaleString("en-US")})` : match.academic.enrollment_total <= 10000 ? `Moyenne (${match.academic.enrollment_total.toLocaleString("en-US")})` : `Grande (${match.academic.enrollment_total.toLocaleString("en-US")})` },
+                          { icon: "💼", label: "Salaire 10y",value: match.academic.median_earnings === null ? null : `$${match.academic.median_earnings.toLocaleString("en-US")}` },
+                          { icon: "📈", label: "Rétention",  value: match.academic.retention_rate === null ? null : `${match.academic.retention_rate}%` },
+                          { icon: "💳", label: "Dette",      value: match.academic.grad_debt_median === null ? null : `$${match.academic.grad_debt_median.toLocaleString("en-US")}` },
                         ].map(({ icon, label, value }) => (
                           <div key={label}>
                             <span style={{ fontSize: 11, color: C.slate }}>{icon} {label} </span>
-                            <span style={{ ...MONO, fontSize: isMobile ? 10 : 12, color: "#fff", fontWeight: 700 }}>{value}</span>
+                            {value !== null
+                              ? <span style={{ ...MONO, fontSize: isMobile ? 10 : 12, color: "#fff", fontWeight: 700 }}>{value}</span>
+                              : <span style={{ ...MONO, fontSize: isMobile ? 10 : 12, color: C.slate, fontStyle: "italic" }}>N/D</span>
+                            }
                           </div>
                         ))}
                       </div>
