@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 
@@ -39,27 +39,35 @@ function AuthForm({
   const [password,  setPassword]  = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName,  setLastName]  = useState("")
-  const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState("")
+  const [loading,   setLoading]   = useState(false)
 
-  async function handleSubmit() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
     setLoading(true)
     setError("")
-    try {
-      const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login"
-      const body = mode === "register"
-        ? { email, password, first_name: firstName, last_name: lastName, session_token: sessionToken }
-        : { email, password }
 
+    const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login"
+    const payload = mode === "register"
+      ? { email, password, first_name: firstName, last_name: lastName, session_token: sessionToken }
+      : { email, password, session_token: sessionToken }
+
+    try {
       const res = await fetch(`${API}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.detail || "Erreur"); return }
-      localStorage.setItem("rise_user_token", data.token)
-      onSuccess(data)
+
+      if (!res.ok) {
+        setError(data.detail || "Une erreur est survenue")
+        setLoading(false)
+        return
+      }
+
+      localStorage.setItem("rise_user_token", data.access_token)
+      onSuccess(data.user)
     } catch {
       setError("Erreur de connexion au serveur")
     } finally {
@@ -67,451 +75,103 @@ function AuthForm({
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%", boxSizing: "border-box",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 8, padding: "11px 14px",
-    color: C.white, fontSize: 14, outline: "none",
-    ...INTER,
-  }
-
   return (
-    <div style={{ minHeight: "100vh", background: C.navy, ...INTER, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
+    <div style={{ minHeight: "100vh", backgroundColor: C.navy, color: C.white, ...INTER }}>
+      <header style={{ backgroundColor: C.navy, height: 72, borderBottom: `2px solid ${C.maize}`, display: "flex", alignItems: "center", padding: "0 24px" }}>
+        <Link href="/" style={{ textDecoration: "none" }}>
+          <div style={{ ...BEBAS, fontSize: 28, letterSpacing: 1, lineHeight: 1 }}>
+            <span style={{ color: C.maize }}>RISE</span><span style={{ color: "#fff" }}>.MATCH</span>
+          </div>
+          <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>PORTAIL ATHLÈTE</div>
+        </Link>
+      </header>
 
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <span style={{ ...BEBAS, fontSize: 26, color: C.maize }}>RISE</span>
-            <span style={{ ...BEBAS, fontSize: 26, color: C.white }}>.MATCH</span>
-          </Link>
-        </div>
-
-        {sessionToken && (
-          <div style={{ background: "rgba(255,203,5,0.07)", border: "1px solid rgba(255,203,5,0.25)", borderRadius: 10, padding: "14px 18px", marginBottom: 20, display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <span style={{ fontSize: 18 }}>🎯</span>
-            <div>
-              <p style={{ ...BEBAS, color: C.maize, fontSize: 13, letterSpacing: 1, margin: "0 0 3px" }}>
-                TA RECHERCHE EST SAUVEGARDÉE
-              </p>
-              <p style={{ color: C.slateLight, fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-                {mode === "register"
-                  ? "Crée ton compte pour débloquer ta liste complète."
-                  : "Connecte-toi pour retrouver tes résultats."}
-              </p>
-            </div>
+      <main style={{ maxWidth: 400, margin: "80px auto", padding: "0 20px" }}>
+        {sessionToken && mode === "register" && (
+          <div style={{ backgroundColor: "rgba(46, 204, 113, 0.1)", border: "1px solid #2ECC71", padding: 16, borderRadius: 8, marginBottom: 24, textAlign: "center" }}>
+            <p style={{ margin: 0, color: "#2ECC71", fontSize: 14 }}>
+              ✅ Tes résultats sont sauvegardés ! Crée ton compte pour les débloquer.
+            </p>
           </div>
         )}
 
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 16, padding: 28 }}>
+        <div style={{ backgroundColor: C.navyLight, border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 12, padding: 32 }}>
+          <h1 style={{ ...BEBAS, fontSize: 32, margin: "0 0 24px", color: C.maize, textAlign: "center", letterSpacing: 1 }}>
+            {mode === "login" ? "CONNEXION" : "CRÉER UN COMPTE"}
+          </h1>
 
-          {/* Toggle register / login */}
-          <div style={{ display: "flex", marginBottom: 24, background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 3 }}>
-            {(["register", "login"] as const).map(m => (
-              <button key={m} onClick={() => setMode(m)} style={{
-                flex: 1, padding: "8px 0", border: "none", borderRadius: 6,
-                cursor: "pointer", transition: "all 0.2s",
-                background: mode === m ? C.maize : "transparent",
-                color: mode === m ? C.navy : C.slate,
-                ...BEBAS, fontSize: 13, letterSpacing: 1,
-              }}>
-                {m === "register" ? "CRÉER UN COMPTE" : "SE CONNECTER"}
-              </button>
-            ))}
-          </div>
+          {error && (
+            <div style={{ backgroundColor: "rgba(231,76,60,0.1)", color: C.red, padding: 12, borderRadius: 6, marginBottom: 16, fontSize: 13, textAlign: "center" }}>
+              {error}
+            </div>
+          )}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {mode === "register" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[
-                  { label: "PRÉNOM", val: firstName, set: setFirstName, ph: "Lucas" },
-                  { label: "NOM",    val: lastName,  set: setLastName,  ph: "Martin" },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 2, display: "block", marginBottom: 5 }}>
-                      {f.label}
-                    </label>
-                    <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} style={inputStyle} />
-                  </div>
-                ))}
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 12, color: C.slate, marginBottom: 6, ...BEBAS, letterSpacing: 1 }}>PRÉNOM</label>
+                  <input type="text" required value={firstName} onChange={e => setFirstName(e.target.value)}
+                    style={{ width: "100%", backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "12px", color: C.white, outline: "none" }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 12, color: C.slate, marginBottom: 6, ...BEBAS, letterSpacing: 1 }}>NOM</label>
+                  <input type="text" required value={lastName} onChange={e => setLastName(e.target.value)}
+                    style={{ width: "100%", backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "12px", color: C.white, outline: "none" }} />
+                </div>
               </div>
             )}
 
-            {[
-              { label: "EMAIL",         val: email,    set: setEmail,    type: "email",    ph: "ton@email.com" },
-              { label: "MOT DE PASSE",  val: password, set: setPassword, type: "password", ph: "••••••••" },
-            ].map(f => (
-              <div key={f.label}>
-                <label style={{ ...BEBAS, fontSize: 11, color: C.slate, letterSpacing: 2, display: "block", marginBottom: 5 }}>
-                  {f.label}
-                </label>
-                <input
-                  type={f.type}
-                  value={f.val}
-                  onChange={e => f.set(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleSubmit()}
-                  placeholder={f.ph}
-                  style={inputStyle}
-                />
-              </div>
-            ))}
+            <div>
+              <label style={{ display: "block", fontSize: 12, color: C.slate, marginBottom: 6, ...BEBAS, letterSpacing: 1 }}>EMAIL</label>
+              <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                style={{ width: "100%", backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "12px", color: C.white, outline: "none" }} />
+            </div>
+            
+            <div>
+              <label style={{ display: "block", fontSize: 12, color: C.slate, marginBottom: 6, ...BEBAS, letterSpacing: 1 }}>MOT DE PASSE</label>
+              <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
+                style={{ width: "100%", backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "12px", color: C.white, outline: "none" }} />
+            </div>
 
-            {error && <p style={{ color: C.red, fontSize: 13, margin: 0 }}>{error}</p>}
+            <button disabled={loading} style={{ backgroundColor: C.maize, color: C.navy, border: "none", borderRadius: 6, padding: "14px", ...BEBAS, fontSize: 18, letterSpacing: 1, cursor: loading ? "wait" : "pointer", marginTop: 8, opacity: loading ? 0.7 : 1 }}>
+              {loading ? "CHARGEMENT..." : (mode === "login" ? "SE CONNECTER" : "DÉBLOQUER MES MATCHS →")}
+            </button>
+          </form>
 
-            <button
-              onClick={handleSubmit}
-              disabled={loading || !email || !password}
-              style={{
-                width: "100%", padding: "13px 0",
-                background: (!email || !password || loading) ? "rgba(255,203,5,0.4)" : C.maize,
-                color: C.navy, border: "none", borderRadius: 8,
-                ...BEBAS, fontSize: 17, letterSpacing: 1,
-                cursor: (!email || !password || loading) ? "not-allowed" : "pointer",
-                marginTop: 4,
-              }}
-            >
-              {loading ? "CHARGEMENT..."
-                : mode === "register" ? "CRÉER MON COMPTE →"
-                : "SE CONNECTER →"}
+          <div style={{ textAlign: "center", marginTop: 24 }}>
+            <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setError("") }}
+              style={{ background: "none", border: "none", color: C.slate, fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
+              {mode === "login" ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
             </button>
           </div>
         </div>
-
-        {mode === "register" && (
-          <p style={{ color: C.slate, fontSize: 11, textAlign: "center", marginTop: 14, lineHeight: 1.6, ...INTER }}>
-            En créant un compte, tu acceptes d'être contacté par RISE Athletics.
-          </p>
-        )}
-      </div>
+      </main>
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────
-// PARTIE 3 : PendingView
+// PARTIE 3 : ClientPortalInner (Anciennement ClientPortal)
 // ─────────────────────────────────────────────────────────────
 
-function PendingView({ user, onLogout }: { user: any; onLogout: () => void }) {
-  return (
-    <div style={{ minHeight: "100vh", background: C.navy, ...INTER, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ maxWidth: 520, width: "100%", textAlign: "center" }}>
-
-        <div style={{ marginBottom: 28 }}>
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <span style={{ ...BEBAS, fontSize: 26, color: C.maize }}>RISE</span>
-            <span style={{ ...BEBAS, fontSize: 26, color: C.white }}>.MATCH</span>
-          </Link>
-        </div>
-
-        <div style={{ fontSize: 56, marginBottom: 20 }}>⏳</div>
-
-        <h1 style={{ ...BEBAS, fontSize: 34, color: C.white, letterSpacing: 1, margin: "0 0 12px" }}>
-          DOSSIER EN COURS DE VALIDATION
-        </h1>
-        <p style={{ color: C.slateLight, fontSize: 15, lineHeight: 1.7, maxWidth: 400, margin: "0 auto 28px" }}>
-          Bonjour {user.first_name || user.email.split("@")[0]} 👋
-          <br />
-          Ton compte a été créé. L'équipe RISE va examiner ton profil
-          et te contacter dans les{" "}
-          <strong style={{ color: C.maize }}>24 heures</strong>.
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 320, margin: "0 auto 28px", textAlign: "left" }}>
-          {[
-            { label: "Compte créé",                                    done: true },
-            { label: "Examen du profil par RISE Athletics",            done: false },
-            { label: "Accès activé — liste complète débloquée",        done: false },
-          ].map(({ label, done }, i) => (
-            <div key={i} style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <div style={{
-                width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: done ? C.maize : "rgba(255,255,255,0.07)",
-                border: `2px solid ${done ? C.maize : "rgba(255,255,255,0.12)"}`,
-                ...BEBAS, fontSize: 12,
-                color: done ? C.navy : C.slate,
-              }}>
-                {done ? "✓" : i + 1}
-              </div>
-              <span style={{ color: done ? C.white : C.slate, fontSize: 14 }}>{label}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.12)", borderRadius: 12, padding: "16px 20px", maxWidth: 380, margin: "0 auto 20px", textAlign: "left" }}>
-          <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: "0 0 10px" }}>
-            COMMENT ÇA MARCHE ?
-          </p>
-          <p style={{ color: C.slateLight, fontSize: 13, lineHeight: 1.7, margin: 0 }}>
-            L'équipe RISE te contacte pour présenter les formules disponibles.
-            Une fois le virement reçu, ton accès complet est activé sous 2h.
-          </p>
-        </div>
-
-        <a href="mailto:contact@riseathletics.fr" style={{ display: "inline-block", marginBottom: 20, color: C.maize, fontSize: 13, textDecoration: "none" }}>
-          📧 contact@riseathletics.fr
-        </a>
-
-        <br />
-        <button onClick={onLogout} style={{ background: "transparent", border: "none", color: C.slate, fontSize: 12, cursor: "pointer", textDecoration: "underline", ...INTER }}>
-          Se déconnecter
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// PARTIE 4 : DashboardView
-// ─────────────────────────────────────────────────────────────
-
-function DashboardView({
-  user,
-  sessions,
-  onLogout,
-}: {
-  user: any
-  sessions: any[]
-  onLogout: () => void
-}) {
+function ClientPortalInner() {
+  const searchParams = useSearchParams()
   const router = useRouter()
-  const [activeSession, setActiveSession] = useState(sessions[0] || null)
-
-  const rawMatches = activeSession?.published_matches
-  const matches = rawMatches
-    ? (typeof rawMatches === "string" ? JSON.parse(rawMatches) : rawMatches)
-    : null
-
-  const STATUS_PIPELINE = [
-    { key: "nouveau",     label: "Nouveau" },
-    { key: "prospect",    label: "Dossier ouvert" },
-    { key: "accompagné",  label: "Matchs validés" },
-    { key: "signé",       label: "Offre reçue" },
-  ]
-  const currentStatusIdx = STATUS_PIPELINE.findIndex(s => s.key === activeSession?.admin_status)
-
-  return (
-    <div style={{ minHeight: "100vh", background: C.navy, ...INTER }}>
-
-      {/* Header */}
-      <div style={{ background: C.navyLight, borderBottom: `2px solid ${C.maize}`, padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <span style={{ ...BEBAS, fontSize: 22, color: C.maize }}>RISE</span>
-            <span style={{ ...BEBAS, fontSize: 22, color: C.white }}>.MATCH</span>
-          </Link>
-          <span style={{ color: C.slate, fontSize: 12 }}>|</span>
-          <span style={{ color: C.slateLight, fontSize: 13 }}>
-            {user.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : user.email}
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <span style={{
-            ...BEBAS, fontSize: 11, letterSpacing: 1,
-            padding: "3px 10px", borderRadius: 20,
-            background: user.plan === "accompagne" ? "rgba(155,89,182,0.2)" : "rgba(255,203,5,0.1)",
-            color: user.plan === "accompagne" ? "#b39ddb" : C.maize,
-            border: `1px solid ${user.plan === "accompagne" ? "#9b59b6" : C.maize}`,
-          }}>
-            {user.plan === "accompagne" ? "ACCOMPAGNÉ" : "MATCH"}
-          </span>
-          <button onClick={onLogout} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.12)", color: C.slate, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12, ...INTER }}>
-            Déconnexion
-          </button>
-        </div>
-      </div>
-
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 16px" }}>
-
-        {/* Pipeline statut */}
-        {activeSession && (
-          <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.12)", borderRadius: 12, padding: "14px 20px", marginBottom: 20 }}>
-            <p style={{ ...BEBAS, color: C.maize, fontSize: 11, letterSpacing: 2, margin: "0 0 10px" }}>
-              STATUT DE TON DOSSIER
-            </p>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-              {STATUS_PIPELINE.map(({ key, label }, i) => {
-                const isDone = i <= currentStatusIdx
-                return (
-                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 5,
-                      padding: "3px 10px", borderRadius: 20,
-                      background: isDone ? "rgba(255,203,5,0.1)" : "transparent",
-                      border: `1px solid ${isDone ? C.maize : "rgba(255,255,255,0.1)"}`,
-                    }}>
-                      <span style={{ fontSize: 10 }}>{isDone ? "✓" : "○"}</span>
-                      <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 1, color: isDone ? C.maize : C.slate }}>
-                        {label}
-                      </span>
-                    </div>
-                    {i < STATUS_PIPELINE.length - 1 && (
-                      <span style={{ color: isDone ? C.maize : C.slate, fontSize: 14 }}>→</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Note équipe RISE */}
-        {activeSession?.admin_notes && (
-          <div style={{ background: "rgba(255,203,5,0.04)", border: "1px solid rgba(255,203,5,0.2)", borderLeft: `4px solid ${C.maize}`, borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
-            <p style={{ ...BEBAS, color: C.maize, fontSize: 11, letterSpacing: 2, margin: "0 0 8px" }}>
-              📋 MESSAGE DE L'ÉQUIPE RISE
-            </p>
-            <p style={{ color: C.slateLight, fontSize: 14, lineHeight: 1.7, margin: 0 }}>
-              {activeSession.admin_notes}
-            </p>
-          </div>
-        )}
-
-        {/* Onglets si plusieurs sessions */}
-        {sessions.length > 1 && (
-          <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-            {sessions.map((s, i) => (
-              <button
-                key={s.session_token}
-                onClick={() => setActiveSession(s)}
-                style={{
-                  padding: "6px 14px", borderRadius: 6, border: "1px solid", cursor: "pointer",
-                  ...BEBAS, fontSize: 12, letterSpacing: 1,
-                  background: activeSession?.session_token === s.session_token ? C.maize : "transparent",
-                  color: activeSession?.session_token === s.session_token ? C.navy : C.slate,
-                  borderColor: activeSession?.session_token === s.session_token ? C.maize : "rgba(255,255,255,0.12)",
-                }}
-              >
-                RECHERCHE #{i + 1} · {new Date(s.created_at).toLocaleDateString("fr-FR")}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Matchs */}
-        {matches === null ? (
-          <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "44px 32px", textAlign: "center" }}>
-            <div style={{ fontSize: 44, marginBottom: 14 }}>🔬</div>
-            <h2 style={{ ...BEBAS, color: C.white, fontSize: 26, letterSpacing: 1, margin: "0 0 10px" }}>
-              ANALYSE EN COURS
-            </h2>
-            <p style={{ color: C.slateLight, fontSize: 14, lineHeight: 1.7, maxWidth: 380, margin: "0 auto 20px" }}>
-              L'équipe RISE prépare ta liste personnalisée.
-              Tu seras notifié dès qu'elle est prête.
-            </p>
-            <a href="mailto:contact@riseathletics.fr" style={{ color: C.maize, fontSize: 13, textDecoration: "none" }}>
-              📧 contact@riseathletics.fr
-            </a>
-          </div>
-        ) : (
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-              <h2 style={{ ...BEBAS, fontSize: 28, color: C.white, letterSpacing: 1, margin: 0 }}>
-                TES {matches.length} MATCHS VALIDÉS
-              </h2>
-              <span style={{ color: C.slate, fontSize: 11, ...INTER }}>Sélection RISE Athletics</span>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {matches.map((match: any, i: number) => {
-                const domain = match.academic?.website
-                  ? match.academic.website.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]
-                  : null
-
-                return (
-                  <div
-                    key={match.team_id ?? i}
-                    onClick={() => router.push(`/school/${match.team_id}`)}
-                    style={{
-                      background: C.navyLight,
-                      borderLeft: `4px solid ${C.maize}`,
-                      borderRadius: 10, padding: "14px 18px",
-                      cursor: "pointer", transition: "transform 0.15s",
-                      display: "grid",
-                      gridTemplateColumns: "36px 32px 1fr auto",
-                      gap: 12, alignItems: "center",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-1px)")}
-                    onMouseLeave={e => (e.currentTarget.style.transform = "translateY(0)")}
-                  >
-                    <span style={{ ...BEBAS, fontSize: 24, color: C.maize }}>#{i + 1}</span>
-
-                    {domain ? (
-                      <img
-                        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
-                        width={28} height={28}
-                        style={{ borderRadius: 5, objectFit: "contain" }}
-                        onError={e => { e.currentTarget.style.display = "none" }}
-                        alt=""
-                      />
-                    ) : (
-                      <div style={{ width: 28, height: 28, borderRadius: 5, background: C.navyMid, display: "flex", alignItems: "center", justifyContent: "center", ...BEBAS, fontSize: 13, color: C.maize }}>
-                        {match.name?.[0]}
-                      </div>
-                    )}
-
-                    <div>
-                      <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
-                        <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: match.country === "CA" ? "#c0392b" : C.navyMid, color: "white" }}>
-                          {match.country}
-                        </span>
-                        <span style={{ color: C.white, fontWeight: 600, fontSize: 14 }}>{match.name}</span>
-                      </div>
-                      <p style={{ color: C.slate, fontSize: 11, margin: "3px 0 0", ...MONO }}>
-                        {match.division} · {match.state}
-                        {match.rang_estime && ` · Rang estimé #${match.rang_estime}`}
-                      </p>
-                    </div>
-
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ ...BEBAS, fontSize: 22, color: C.maize }}>
-                        {match.score_total ?? "—"}/100
-                      </div>
-                      <div style={{ color: C.slate, fontSize: 11, ...MONO }}>
-                        🏊{match.score_sportif ?? "—"} 🎓{match.score_academique ?? "—"}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div style={{ textAlign: "center", marginTop: 32, padding: 20, background: C.navyLight, borderRadius: 12, border: "1px solid rgba(255,203,5,0.08)" }}>
-              <p style={{ color: C.slateLight, fontSize: 13, marginBottom: 14 }}>
-                Tes temps ont évolué ? Lance une nouvelle recherche.
-              </p>
-              <Link href="/" style={{ display: "inline-block", background: "transparent", border: `1px solid ${C.maize}`, color: C.maize, padding: "9px 22px", borderRadius: 8, ...BEBAS, fontSize: 15, letterSpacing: 1, textDecoration: "none" }}>
-                ↩ NOUVELLE RECHERCHE
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// PARTIE 5 : ClientPage (orchestrateur)
-// ─────────────────────────────────────────────────────────────
-
-export default function ClientPage() {
-  const searchParams  = useSearchParams()
-  const sessionToken  = searchParams.get("session")
-
+  const sessionToken = searchParams.get('session')
+  
   const [appState, setAppState] = useState<"loading" | "auth" | "pending" | "dashboard">("loading")
-  const [user,     setUser]     = useState<any>(null)
+  const [user, setUser] = useState<any>(null)
   const [sessions, setSessions] = useState<any[]>([])
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("rise_user_token")
-    if (storedToken) {
-      loadUser(storedToken)
+    const token = localStorage.getItem("rise_user_token")
+    if (token) {
+      loadUser(token)
     } else {
       setAppState("auth")
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   async function loadUser(token: string) {
     try {
@@ -569,10 +229,136 @@ export default function ClientPage() {
   )
 
   if (appState === "pending") return (
-    <PendingView user={user!} onLogout={handleLogout} />
+    <div style={{ minHeight: "100vh", background: C.navy, color: C.white, ...INTER }}>
+      <header style={{ backgroundColor: C.navy, height: 72, borderBottom: `2px solid ${C.maize}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
+        <div style={{ ...BEBAS, fontSize: 28, letterSpacing: 1, lineHeight: 1 }}>
+          <span style={{ color: C.maize }}>RISE</span><span style={{ color: "#fff" }}>.MATCH</span>
+        </div>
+        <button onClick={handleLogout} style={{ background: "transparent", border: `1px solid ${C.slate}`, color: C.slate, padding: "6px 12px", borderRadius: 4, ...BEBAS, cursor: "pointer" }}>
+          DÉCONNEXION
+        </button>
+      </header>
+      <div style={{ maxWidth: 600, margin: "80px auto", textAlign: "center", padding: 24 }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+        <h1 style={{ ...BEBAS, fontSize: 32, color: C.maize, letterSpacing: 1, marginBottom: 16 }}>COMPTE EN ATTENTE D'ACTIVATION</h1>
+        <p style={{ color: C.slate, lineHeight: 1.6, marginBottom: 32 }}>
+          Merci pour ton inscription {user?.first_name} !<br/><br/>
+          L'accès complet à RISE.MATCH est actuellement réservé à nos athlètes accompagnés.
+          Ton profil est en cours de révision par notre équipe.
+        </p>
+        <a href="https://riseathletics.fr/contact" target="_blank" rel="noopener noreferrer"
+           style={{ display: "inline-block", backgroundColor: C.maize, color: C.navy, padding: "12px 24px", borderRadius: 6, ...BEBAS, fontSize: 18, textDecoration: "none", letterSpacing: 1 }}>
+          CONTACTER RISE ATHLETICS →
+        </a>
+      </div>
+    </div>
   )
 
   return (
-    <DashboardView user={user!} sessions={sessions} onLogout={handleLogout} />
+    <div style={{ minHeight: "100vh", backgroundColor: C.navy, color: C.white, ...INTER }}>
+      <header style={{ backgroundColor: C.navyLight, height: 72, borderBottom: `1px solid rgba(255,255,255,0.1)`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <Link href="/" style={{ textDecoration: "none" }}>
+            <div style={{ ...BEBAS, fontSize: 28, letterSpacing: 1, lineHeight: 1 }}>
+              <span style={{ color: C.maize }}>RISE</span><span style={{ color: "#fff" }}>.MATCH</span>
+            </div>
+          </Link>
+          <span style={{ color: C.slate, fontSize: 14 }}>|</span>
+          <span style={{ ...BEBAS, fontSize: 18, color: C.white, letterSpacing: 1 }}>DASHBOARD ATHLÈTE</span>
+        </div>
+        <div style={{ display: "flex", gap: 16 }}>
+          <button onClick={handleLogout} style={{ backgroundColor: "rgba(231,76,60,0.1)", border: `1px solid ${C.red}`, color: C.red, padding: "8px 16px", borderRadius: 6, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}>
+            DÉCONNEXION
+          </button>
+        </div>
+      </header>
+
+      <main style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 20px" }}>
+        <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div>
+            <h1 style={{ ...BEBAS, fontSize: 40, color: C.white, margin: "0 0 8px", letterSpacing: 1 }}>BIENVENUE, {user?.first_name?.toUpperCase()}</h1>
+            <p style={{ color: C.slate, margin: 0, fontSize: 14 }}>Voici tes listes de matchs validées par l'équipe.</p>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <span style={{ ...BEBAS, fontSize: 14, color: C.slate, letterSpacing: 1, display: "block" }}>STATUT DU COMPTE</span>
+            <span style={{ backgroundColor: "rgba(46,204,113,0.1)", color: C.green, padding: "4px 10px", borderRadius: 4, ...BEBAS, fontSize: 16, letterSpacing: 1 }}>ACTIF</span>
+          </div>
+        </div>
+
+        {sessions.length === 0 ? (
+          <div style={{ backgroundColor: C.navyLight, borderRadius: 12, padding: 48, textAlign: "center", border: `1px solid rgba(255,255,255,0.05)` }}>
+            <p style={{ color: C.slate, fontSize: 15, marginBottom: 24 }}>Aucun match n'a encore été publié sur ton profil.</p>
+            <Link href="/" style={{ backgroundColor: "rgba(255,203,5,0.1)", color: C.maize, border: `1px solid ${C.maize}`, padding: "10px 20px", borderRadius: 6, ...BEBAS, fontSize: 16, textDecoration: "none", letterSpacing: 1 }}>
+              LANCER UNE NOUVELLE RECHERCHE
+            </Link>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {sessions.map((session, i) => (
+              <div key={i} style={{ backgroundColor: C.navyLight, borderRadius: 12, border: `1px solid rgba(255,255,255,0.05)`, overflow: "hidden" }}>
+                <div style={{ padding: "16px 24px", borderBottom: `1px solid rgba(255,255,255,0.05)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, margin: 0, letterSpacing: 1 }}>{session.label}</h2>
+                  <span style={{ fontSize: 12, color: C.slate }}>Publié le {new Date(session.created_at).toLocaleDateString("fr-FR")}</span>
+                </div>
+                
+                <div style={{ padding: 24 }}>
+                  {session.published_matches ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {session.published_matches.map((match: any, idx: number) => (
+                        <div key={idx} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 8, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid rgba(255,255,255,0.02)` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                            <span style={{ ...BEBAS, fontSize: 24, color: C.slate }}>#{idx + 1}</span>
+                            <div>
+                              <h3 style={{ margin: "0 0 4px", fontSize: 16, color: C.white, fontWeight: 600 }}>{match.name}</h3>
+                              <div style={{ fontSize: 12, color: C.slate, ...MONO }}>{match.division} · {match.state}</div>
+                            </div>
+                          </div>
+                          
+                          <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontSize: 11, color: C.slate, marginBottom: 4 }}>TOTAL</div>
+                              <div style={{ ...BEBAS, fontSize: 24, color: C.maize, lineHeight: 1 }}>{match.score_total}/100</div>
+                            </div>
+                            <button onClick={() => router.push(`/school/${match.team_id}`)} style={{ backgroundColor: "transparent", border: `1px solid ${C.slate}`, color: C.white, padding: "8px 16px", borderRadius: 6, ...BEBAS, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = C.slate; e.currentTarget.style.color = C.white }}>
+                              DÉTAILS →
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: C.slate, fontSize: 14, margin: 0, fontStyle: "italic" }}>Les résultats de cette session sont en cours d'analyse.</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// PARTIE 4 : Suspense Boundary Wrapper (ClientPortal)
+// ─────────────────────────────────────────────────────────────
+
+export default function ClientPortal() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        minHeight: '100vh', background: '#0B1628',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 18, 
+          color: '#8A9BB0', letterSpacing: 2 }}>
+          CHARGEMENT...
+        </span>
+      </div>
+    }>
+      <ClientPortalInner />
+    </Suspense>
   )
 }
