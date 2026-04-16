@@ -185,3 +185,40 @@ async def get_published_results(session_token: str):
         }
     finally:
         await conn.close()
+
+
+@router.get("/api/admin/users")
+async def list_users(x_admin_token: str = Header(None)):
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        users = await conn.fetch("""
+            SELECT id, email, first_name, last_name, is_active, plan,
+                   created_at,
+                   array_length(session_tokens, 1) as sessions_count
+            FROM users
+            ORDER BY created_at DESC
+        """)
+        result = []
+        for u in users:
+            d = dict(u)
+            if d.get("created_at"):
+                d["created_at"] = d["created_at"].isoformat()
+            result.append(d)
+        return {"users": result}
+    finally:
+        await conn.close()
+
+
+@router.patch("/api/admin/users/{user_id}/activate")
+async def activate_user(user_id: int, body: dict, x_admin_token: str = Header(None)):
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        await conn.execute(
+            "UPDATE users SET is_active = $1, plan = $2 WHERE id = $3",
+            body.get("is_active", True), body.get("plan", "match"), user_id,
+        )
+        return {"success": True}
+    finally:
+        await conn.close()
