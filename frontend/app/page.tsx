@@ -217,71 +217,83 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
   onNewSearch?: () => void
 }) {
   return (
-    <header style={{ backgroundColor: C.navy, height: 72, borderBottom: `2px solid ${C.maize}`, position: "sticky", top: 0, zIndex: 100, flexShrink: 0 }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <header style={{ backgroundColor: C.navy, height: 72, borderBottom: `1px solid rgba(255,255,255,0.08)`, position: "sticky", top: 0, zIndex: 100, flexShrink: 0 }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         
-        {/* BOUTON LOGO */}
-        <button onClick={onHome} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          {/* L'image remplace le texte RISE.MATCH */}
+        {/* ── GAUCHE : Logo + Branding ── */}
+        <button onClick={onHome} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 12 }}>
           <img 
             src="/rise-logo.svg" 
             alt="RISE Logo" 
-            style={{ height: "70px", width: "auto", marginBottom: "2px" }} 
+            style={{ height: "38px", width: "auto" }} 
           />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", textAlign: "left" }}>
+            <span style={{ ...BEBAS, fontSize: 22, color: C.white, letterSpacing: 1, lineHeight: 1 }}>
+              RISE<span style={{ color: C.maize }}>.MATCH</span>
+            </span>
+            <span style={{ fontSize: 10, color: C.slate, letterSpacing: 0.5, marginTop: 2 }}>
+              BY RISE ATHLETICS
+            </span>
+          </div>
         </button>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        {/* ── DROITE : Navigation ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          
           {showNewSearch && onNewSearch && (
-            <button onClick={onNewSearch} style={{ ...BEBAS, fontSize: 13, letterSpacing: 1, color: C.maize, background: "none", border: `1px solid ${C.maize}`, borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>
-              ← NOUVELLE RECHERCHE
+            <button 
+              onClick={onNewSearch} 
+              style={{ ...BEBAS, fontSize: 15, letterSpacing: 1, color: C.slate, background: "none", border: "none", cursor: "pointer", transition: "color 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.color = C.white}
+              onMouseLeave={e => e.currentTarget.style.color = C.slate}
+            >
+              NOUVELLE RECHERCHE
             </button>
           )}
           
-          {/* NOUVEAU BOUTON : ESPACE CLIENT */}
+          <a 
+            href="https://riseathletics.fr" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={{ ...BEBAS, fontSize: 15, letterSpacing: 1, color: C.slate, textDecoration: "none", transition: "color 0.2s" }}
+            onMouseEnter={e => e.currentTarget.style.color = C.white}
+            onMouseLeave={e => e.currentTarget.style.color = C.slate}
+          >
+            L'AGENCE ↗
+          </a>
+
+          {/* Lien Admin discret (stealth) */}
+          <Link 
+            href="/admin" 
+            style={{ ...BEBAS, fontSize: 15, letterSpacing: 1, color: "rgba(255,255,255,0.2)", textDecoration: "none", transition: "color 0.2s" }}
+            onMouseEnter={e => e.currentTarget.style.color = C.slate}
+            onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
+            title="Accès Administrateur"
+          >
+            ADMIN
+          </Link>
+
+          {/* Bouton Principal : Espace Client */}
           <Link 
             href="/client" 
             style={{ 
-              backgroundColor: "transparent",
-              color: C.white,
-              border: `1px solid ${C.slate}`,
-              padding: "6px 14px",
+              backgroundColor: C.maize,
+              color: C.navy,
+              padding: "10px 24px",
               borderRadius: 6,
               ...BEBAS,
-              fontSize: 14,
+              fontSize: 16,
               letterSpacing: 1,
               textDecoration: "none",
-              transition: "all 0.2s"
+              transition: "transform 0.2s, background-color 0.2s",
+              marginLeft: 8
             }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.slate; e.currentTarget.style.color = C.white }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "translateY(-2px)" }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
           >
             ESPACE CLIENT
           </Link>
 
-          {/* Admin Link - Highly visible yellow box */}
-          <Link 
-             href="/admin" 
-             style={{ 
-               backgroundColor: C.maize,
-               color: C.navy,
-               padding: "4px 10px",
-               borderRadius: 4,
-               fontSize: 11,
-               fontWeight: "bold",
-               textTransform: "uppercase",
-               letterSpacing: 1,
-               textDecoration: "none",
-               transition: "opacity 0.2s"
-             }}
-             onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
-             onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-          >
-             Admin
-          </Link>
-
-          <a href="https://riseathletics.fr" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: C.slate, textDecoration: "none" }}>
-            riseathletics.fr ↗
-          </a>
         </div>
       </div>
     </header>
