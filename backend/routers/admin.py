@@ -42,23 +42,44 @@ async def admin_verify(token: str):
 
 
 @router.get("/api/admin/sessions")
-async def list_sessions(_: None = Depends(verify_admin)):
+async def list_sessions(
+    offset: int = 0,
+    limit: int = 50,
+    status: str = None,
+    _: None = Depends(verify_admin),
+):
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     try:
-        rows = await conn.fetch("""
+        where = "WHERE 1=1"
+        params: list = []
+        if status:
+            params.append(status)
+            where += f" AND admin_status = ${len(params)}"
+
+        params.extend([limit, offset])
+        rows = await conn.fetch(f"""
             SELECT id, session_token, gender, divisions, times_input,
                    results_count, top_match, ip_address, created_at,
                    admin_label, admin_status, admin_notes
             FROM search_sessions
-            ORDER BY created_at DESC LIMIT 50
-        """)
+            {where}
+            ORDER BY created_at DESC
+            LIMIT ${len(params) - 1} OFFSET ${len(params)}
+        """, *params)
+
+        count_params = params[:-2] if len(params) > 2 else []
+        total = await conn.fetchval(
+            f"SELECT COUNT(*) FROM search_sessions {where}",
+            *count_params,
+        )
+
         result = []
         for r in rows:
             d = dict(r)
             if d.get("created_at"):
                 d["created_at"] = d["created_at"].isoformat()
             result.append(d)
-        return result
+        return {"sessions": result, "total": total, "offset": offset, "limit": limit}
     finally:
         await conn.close()
 

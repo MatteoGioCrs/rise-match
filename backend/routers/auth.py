@@ -7,8 +7,15 @@ def hash_password(password: str) -> str:
     salt = "RISE_MATCH_2026"
     return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
+# JWT_SECRET est distinct de ADMIN_PASSWORD volontairement.
+# ADMIN_PASSWORD = accès au CRM admin
+# JWT_SECRET = signature des tokens athlètes
+# Les deux doivent être différents et définis en production.
+def _jwt_secret() -> str:
+    return os.environ.get("JWT_SECRET") or os.environ.get("ADMIN_PASSWORD", "CHANGE_ME_IN_PROD")
+
 def make_token(user_id: int, email: str) -> str:
-    secret = os.environ.get("ADMIN_PASSWORD", "default")
+    secret = _jwt_secret()
     payload = f"{user_id}:{email}:{int(time.time() // 86400)}"
     sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
     encoded = base64.b64encode(payload.encode()).decode()
@@ -20,7 +27,7 @@ def verify_token(token: str) -> dict | None:
         payload = base64.b64decode(encoded).decode()
         parts = payload.split(":")
         user_id, email = parts[0], parts[1]
-        secret = os.environ.get("ADMIN_PASSWORD", "default")
+        secret = _jwt_secret()
         for offset in [0, -1]:
             day = int(time.time() // 86400) + offset
             expected_payload = f"{user_id}:{email}:{day}"
@@ -89,11 +96,31 @@ async def login(body: dict):
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     try:
         # On compare avec hashed_password
-        user = await conn.fetchrow("SELECT * FROM users WHERE email = $1 AND password_hash = $2", email, hashed_password)
+        user = await conn.fetchrow("""
+            SELECT id, email, first_name, last_name, is_active, plan,
+                   session_tokens, created_at
+            FROM users WHERE email = $1 AND password_hash = $2
+        """, email, hashed_password)
         
         if not user:
             raise HTTPException(status_code=401, detail="Identifiants incorrects")
-        
+
+        session_token = body.get("session_token")
+        if session_token:
+            await conn.execute("""
+                UPDATE users
+                SET session_tokens = array_append(session_tokens, $1)
+                WHERE id = $2 AND NOT ($1 = ANY(COALESCE(session_tokens, '{}'::text[])))
+            """, session_token, user["id"])
+
+            label = f"{user['first_name'] or ''} {user['last_name'] or ''}".strip() or user["email"]
+            await conn.execute("""
+                UPDATE search_sessions
+                SET user_id = $1,
+                    admin_label = COALESCE(NULLIF(admin_label, ''), $2)
+                WHERE session_token = $3
+            """, user["id"], label, session_token)
+
         # Générer le vrai token
         token = make_token(user["id"], user["email"])
         return {"access_token": token, "user": dict(user)}

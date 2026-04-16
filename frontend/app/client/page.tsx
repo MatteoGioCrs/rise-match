@@ -309,29 +309,44 @@ function ClientPortalInner() {
                 <div style={{ padding: 24 }}>
                   {session.published_matches ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {session.published_matches.map((match: any, idx: number) => (
-                        <div key={idx} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 8, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid rgba(255,255,255,0.02)` }}>
+                      {session.published_matches.map((match: any, idx: number) => {
+                        const isNCAA = typeof match.team_id === "number"
+                        return (
+                        <div key={idx} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 8, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid rgba(255,255,255,0.02)`, cursor: isNCAA ? "pointer" : "default", opacity: isNCAA ? 1 : 0.85 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                             <span style={{ ...BEBAS, fontSize: 24, color: C.slate }}>#{idx + 1}</span>
                             <div>
                               <h3 style={{ margin: "0 0 4px", fontSize: 16, color: C.white, fontWeight: 600 }}>{match.name}</h3>
                               <div style={{ fontSize: 12, color: C.slate, ...MONO }}>{match.division} · {match.state}</div>
+                              {!isNCAA && (
+                                <span style={{ fontSize: 10, color: C.slate, fontStyle: "italic", fontFamily: "Inter, sans-serif" }}>
+                                  Page détail non disponible pour USports
+                                </span>
+                              )}
                             </div>
                           </div>
-                          
+
                           <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
                             <div style={{ textAlign: "right" }}>
                               <div style={{ fontSize: 11, color: C.slate, marginBottom: 4 }}>TOTAL</div>
                               <div style={{ ...BEBAS, fontSize: 24, color: C.maize, lineHeight: 1 }}>{match.score_total}/100</div>
                             </div>
-                            <button onClick={() => router.push(`/school/${match.team_id}`)} style={{ backgroundColor: "transparent", border: `1px solid ${C.slate}`, color: C.white, padding: "8px 16px", borderRadius: 6, ...BEBAS, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
-                              onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
-                              onMouseLeave={e => { e.currentTarget.style.borderColor = C.slate; e.currentTarget.style.color = C.white }}>
-                              DÉTAILS →
-                            </button>
+                            {isNCAA ? (
+                              <button
+                                onClick={() => router.push(`/school/${match.team_id}`)}
+                                style={{ backgroundColor: "transparent", border: `1px solid ${C.slate}`, color: C.white, padding: "8px 16px", borderRadius: 6, ...BEBAS, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = C.slate; e.currentTarget.style.color = C.white }}
+                              >
+                                DÉTAILS →
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 12, color: C.slate, ...BEBAS, letterSpacing: 1 }}>CA 🇨🇦</span>
+                            )}
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     <p style={{ color: C.slate, fontSize: 14, margin: 0, fontStyle: "italic" }}>Les résultats de cette session sont en cours d'analyse.</p>

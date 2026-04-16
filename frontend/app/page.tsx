@@ -503,7 +503,7 @@ interface MatchResult {
   team_times: Record<string, TeamTime>
 }
 
-interface ApiResponse { scy_times: Record<string, number>; matches: MatchResult[]; error?: string }
+interface ApiResponse { scy_times: Record<string, number>; matches: MatchResult[]; error?: string; session_token?: string }
 
 // ─── Utils ─────────────────────────────────────────────────────────────────────
 
@@ -627,8 +627,13 @@ export default function Page() {
       const data: ApiResponse = await res.json()
       setResults(data); setAppState("results")
 
+      // Persister le token en localStorage pour survivre à un rechargement de page
+      if (data.session_token) {
+        localStorage.setItem("rise_last_session_token", data.session_token)
+      }
+
       // Auto-link session to user account if flag is set
-      const sessionToken = (data as any).session_token
+      const sessionToken = data.session_token
       if (sessionToken) {
         const userToken = typeof window !== "undefined" ? localStorage.getItem("rise_user_token") : null
         const linkFlag  = typeof window !== "undefined" ? localStorage.getItem("rise_link_next_session") : null
@@ -1037,7 +1042,7 @@ export default function Page() {
 
   if (!results) return null
 
-  const sessionToken = (results as any).session_token || "";
+  const sessionToken = results.session_token || "";
 
   const filtered = results.matches.filter(match => {
     const ac = match.academic

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from routers.match import router as match_router
 from routers.admin import router as admin_router
@@ -8,7 +8,11 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://rise-match-gtqb.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -22,6 +26,20 @@ app.include_router(auth_router)
 async def create_tables():
     import asyncpg, os
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    # users doit être créé en premier — search_sessions le référence via user_id
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id             SERIAL PRIMARY KEY,
+            email          TEXT UNIQUE NOT NULL,
+            password_hash  TEXT NOT NULL,
+            first_name     TEXT,
+            last_name      TEXT,
+            created_at     TIMESTAMP DEFAULT NOW(),
+            is_active      BOOLEAN DEFAULT FALSE,
+            plan           TEXT DEFAULT 'free',
+            session_tokens TEXT[] DEFAULT '{}'
+        )
+    """)
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS search_sessions (
             id               SERIAL PRIMARY KEY,
@@ -36,21 +54,13 @@ async def create_tables():
             admin_label      TEXT,
             admin_status     TEXT DEFAULT 'nouveau',
             admin_notes      TEXT,
-            published_matches JSONB
+            published_matches JSONB,
+            user_id          INTEGER REFERENCES users(id) ON DELETE SET NULL
         )
     """)
     await conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id             SERIAL PRIMARY KEY,
-            email          TEXT UNIQUE NOT NULL,
-            password_hash  TEXT NOT NULL,
-            first_name     TEXT,
-            last_name      TEXT,
-            created_at     TIMESTAMP DEFAULT NOW(),
-            is_active      BOOLEAN DEFAULT FALSE,
-            plan           TEXT DEFAULT 'free',
-            session_tokens TEXT[] DEFAULT '{}'
-        )
+        ALTER TABLE search_sessions
+        ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
     """)
     await conn.close()
 
@@ -60,8 +70,13 @@ async def health():
     return {"status": "ok"}
 
 @app.get("/api/debug/db")
-async def debug_db():
-    import asyncpg, os
+async def debug_db(x_admin_token: str = Header(None)):
+    import asyncpg, os, hashlib, time as t
+    expected = os.environ.get("ADMIN_PASSWORD", "")
+    valid = hashlib.sha256(f"{expected}{int(t.time() // 3600)}".encode()).hexdigest()
+    prev  = hashlib.sha256(f"{expected}{int(t.time() // 3600) - 1}".encode()).hexdigest()
+    if x_admin_token not in (valid, prev):
+        raise HTTPException(status_code=401, detail="Non autorisé")
     try:
         conn = await asyncpg.connect(os.environ["DATABASE_URL"])
         teams = await conn.fetchval("SELECT COUNT(*) FROM sc_teams")

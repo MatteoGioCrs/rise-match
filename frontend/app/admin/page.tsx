@@ -37,11 +37,14 @@ export default function AdminPage() {
   const [error,    setError]    = useState("")
   const [loading,  setLoading]  = useState(false)
 
+  const LIMIT = 50
   const [sessions,        setSessions]        = useState<Session[]>([])
   const [filter,          setFilter]          = useState("tous")
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [editingLabel,    setEditingLabel]    = useState<Record<number, string>>({})
   const [savingId,        setSavingId]        = useState<number | null>(null)
+  const [offset,          setOffset]          = useState(0)
+  const [total,           setTotal]           = useState(0)
 
   const [activeTab,      setActiveTab]      = useState<"sessions" | "comptes">("sessions")
   const [users,          setUsers]          = useState<any[]>([])
@@ -58,7 +61,7 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
-    if (state === "dashboard") { fetchSessions(); fetchUsers() }
+    if (state === "dashboard") { fetchSessions(0); fetchUsers() }
   }, [state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function verifyToken(t: string) {
@@ -90,14 +93,19 @@ export default function AdminPage() {
     setState("login")
   }
 
-  async function fetchSessions() {
+  async function fetchSessions(newOffset = 0) {
     setLoadingSessions(true)
     try {
       const token = localStorage.getItem("rise_admin_token") ?? ""
-      const res = await fetch(`${API}/api/admin/sessions`, {
+      const params = new URLSearchParams({ limit: String(LIMIT), offset: String(newOffset) })
+      const res = await fetch(`${API}/api/admin/sessions?${params}`, {
         headers: { "x-admin-token": token },
       })
-      if (res.ok) setSessions(await res.json())
+      if (res.ok) {
+        const data = await res.json()
+        setSessions(data.sessions ?? data)
+        if (data.total !== undefined) setTotal(data.total)
+      }
     } catch { /* ignore */ }
     finally { setLoadingSessions(false) }
   }
@@ -217,7 +225,7 @@ export default function AdminPage() {
             {sessions.length} recherche{sessions.length !== 1 ? "s" : ""}
           </span>
           <button
-            onClick={() => { fetchSessions(); fetchUsers() }}
+            onClick={() => { setOffset(0); fetchSessions(0); fetchUsers() }}
             style={{ background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "8px 14px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontFamily: "Inter" }}
           >
             ↻ Rafraîchir
@@ -239,7 +247,13 @@ export default function AdminPage() {
         ] as const).map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => {
+              setActiveTab(tab.key)
+              if (tab.key !== "comptes") {
+                setSelectedUser(null)
+                setUserSessions([])
+              }
+            }}
             style={{
               padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer",
               ...BEBAS, fontSize: 14, letterSpacing: 1,
@@ -399,6 +413,28 @@ export default function AdminPage() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {total > LIMIT && (
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 16, alignItems: "center" }}>
+            <button
+              onClick={() => { const n = Math.max(0, offset - LIMIT); setOffset(n); fetchSessions(n) }}
+              disabled={offset === 0}
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: offset === 0 ? C.slate : C.maize, padding: "6px 16px", borderRadius: 6, cursor: offset === 0 ? "not-allowed" : "pointer", ...BEBAS, fontSize: 13, letterSpacing: 1 }}
+            >
+              ← PRÉCÉDENT
+            </button>
+            <span style={{ color: C.slate, fontSize: 13, fontFamily: "Inter, sans-serif" }}>
+              {offset + 1}–{Math.min(offset + LIMIT, total)} sur {total}
+            </span>
+            <button
+              onClick={() => { const n = offset + LIMIT; setOffset(n); fetchSessions(n) }}
+              disabled={offset + LIMIT >= total}
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: offset + LIMIT >= total ? C.slate : C.maize, padding: "6px 16px", borderRadius: 6, cursor: offset + LIMIT >= total ? "not-allowed" : "pointer", ...BEBAS, fontSize: 13, letterSpacing: 1 }}
+            >
+              SUIVANT →
+            </button>
           </div>
         )}
       </>)}
