@@ -144,3 +144,44 @@ async def update_notes(session_id: int, body: dict, x_admin_token: str = Header(
         return {"ok": True}
     finally:
         await conn.close()
+
+
+@router.post("/api/admin/sessions/{session_id}/publish")
+async def publish_matches(session_id: int, body: dict, x_admin_token: str = Header(None)):
+    """Publie une sélection de matchs validés. body = { "matches": [...] }"""
+    await verify_admin(x_admin_token)
+    published = body.get("matches", [])
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        await conn.execute(
+            """UPDATE search_sessions
+               SET published_matches = $1::jsonb, admin_status = 'accompagné'
+               WHERE id = $2""",
+            json.dumps(published), session_id,
+        )
+        return {"success": True, "published_count": len(published)}
+    finally:
+        await conn.close()
+
+
+@router.get("/api/sessions/{session_token}/results")
+async def get_published_results(session_token: str):
+    """Endpoint PUBLIC — l'athlète consulte ses matchs validés via son token."""
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        row = await conn.fetchrow(
+            "SELECT * FROM search_sessions WHERE session_token = $1", session_token
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Session non trouvée")
+        d = dict(row)
+        return {
+            "session_id":        d["id"],
+            "label":             d["admin_label"] or f"Session #{d['id']}",
+            "status":            d["admin_status"],
+            "published_matches": d["published_matches"],
+            "is_published":      d["published_matches"] is not None,
+            "created_at":        d["created_at"].isoformat() if d.get("created_at") else None,
+        }
+    finally:
+        await conn.close()

@@ -54,7 +54,11 @@ export default function AthleteFilePage() {
   const [notes,          setNotes]          = useState("")
   const [loading,        setLoading]        = useState(true)
   const [rematchLoading, setRematchLoading] = useState(false)
-  const [notesSaved,     setNotesSaved]     = useState(false)
+  const [notesSaved,      setNotesSaved]      = useState(false)
+  const [draftMode,       setDraftMode]       = useState(false)
+  const [selectedMatches, setSelectedMatches] = useState<number[]>([])
+  const [publishedCount,  setPublishedCount]  = useState(0)
+  const [publishLoading,  setPublishLoading]  = useState(false)
 
   useEffect(() => {
     const t = localStorage.getItem("rise_admin_token")
@@ -106,6 +110,24 @@ export default function AthleteFilePage() {
     })
     setNotesSaved(true)
     setTimeout(() => setNotesSaved(false), 2000)
+  }
+
+  async function publishDraft() {
+    if (!token) return
+    setPublishLoading(true)
+    const selectedMatchesData = selectedMatches.map(i => matches[i])
+    try {
+      await fetch(`${API}/api/admin/sessions/${id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": token },
+        body: JSON.stringify({ matches: selectedMatchesData }),
+      })
+      setPublishedCount(selectedMatches.length)
+      setDraftMode(false)
+      setSelectedMatches([])
+      setSession(s => s ? { ...s, admin_status: "accompagné" } : s)
+    } catch { /* ignore */ }
+    finally { setPublishLoading(false) }
   }
 
   async function updateStatus(status: string) {
@@ -246,18 +268,92 @@ export default function AthleteFilePage() {
 
       {/* Section 3 — Matchs */}
       <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+
+        {/* Section header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
           <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, letterSpacing: 2, margin: 0 }}>
             MATCHS {matches.length > 0 && `(${matches.length})`}
           </h2>
-          <button
-            onClick={rematch}
-            disabled={rematchLoading}
-            style={{ background: C.maize, color: C.navy, border: "none", borderRadius: 6, padding: "8px 18px", ...BEBAS, fontSize: 16, letterSpacing: 1, cursor: rematchLoading ? "wait" : "pointer", opacity: rematchLoading ? 0.7 : 1 }}
-          >
-            {rematchLoading ? "CALCUL EN COURS..." : "↻ RELANCER LE MATCHING"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => { setDraftMode(!draftMode); setSelectedMatches([]) }}
+              style={{
+                background: draftMode ? "rgba(155,89,182,0.2)" : "transparent",
+                color: draftMode ? "#b39ddb" : C.slate,
+                border: `1px solid ${draftMode ? "#9b59b6" : "rgba(255,255,255,0.15)"}`,
+                borderRadius: 6, padding: "8px 16px",
+                ...BEBAS, fontSize: 14, letterSpacing: 1, cursor: "pointer",
+              }}
+            >
+              {draftMode ? "✓ MODE DRAFT ACTIF" : "ACTIVER LE DRAFT MODE"}
+            </button>
+            <button
+              onClick={rematch}
+              disabled={rematchLoading}
+              style={{ background: C.maize, color: C.navy, border: "none", borderRadius: 6, padding: "8px 18px", ...BEBAS, fontSize: 16, letterSpacing: 1, cursor: rematchLoading ? "wait" : "pointer", opacity: rematchLoading ? 0.7 : 1 }}
+            >
+              {rematchLoading ? "CALCUL..." : "↻ RELANCER"}
+            </button>
+          </div>
         </div>
+
+        {/* Published success banner */}
+        {publishedCount > 0 && (
+          <div style={{ background: "rgba(46,204,113,0.1)", border: "1px solid #2ecc71", borderRadius: 8, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <p style={{ color: "#2ecc71", margin: 0, fontSize: 14 }}>
+              ✓ {publishedCount} match{publishedCount !== 1 ? "s" : ""} publié{publishedCount !== 1 ? "s" : ""} · Statut mis à jour : Accompagné
+            </p>
+            <span style={{ fontFamily: "monospace", fontSize: 11, color: C.slate }}>
+              Token : {session.session_token}
+            </span>
+          </div>
+        )}
+
+        {/* Draft mode banner */}
+        {draftMode && (
+          <div style={{ background: "rgba(155,89,182,0.1)", border: "1px solid #9b59b6", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <p style={{ color: "#b39ddb", ...BEBAS, fontSize: 16, letterSpacing: 1, margin: "0 0 2px" }}>
+                  DRAFT MODE — Sélectionne les matchs à publier
+                </p>
+                <p style={{ color: C.slate, fontSize: 12, margin: 0 }}>
+                  {selectedMatches.length} match{selectedMatches.length !== 1 ? "s" : ""} sélectionné{selectedMatches.length !== 1 ? "s" : ""} sur {matches.length}
+                </p>
+              </div>
+              <button
+                onClick={publishDraft}
+                disabled={selectedMatches.length === 0 || publishLoading}
+                style={{
+                  background: selectedMatches.length > 0 ? C.maize : "rgba(255,203,5,0.3)",
+                  color: C.navy, border: "none", borderRadius: 6, padding: "10px 20px",
+                  ...BEBAS, fontSize: 16, letterSpacing: 1,
+                  cursor: selectedMatches.length > 0 ? "pointer" : "not-allowed",
+                }}
+              >
+                {publishLoading ? "PUBLICATION..." : `PUBLIER ${selectedMatches.length} MATCH${selectedMatches.length !== 1 ? "S" : ""} →`}
+              </button>
+            </div>
+
+            {/* Quick selection */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[
+                { label: "TOP 5",   fn: () => setSelectedMatches([0,1,2,3,4].filter(i => i < matches.length)) },
+                { label: "TOP 10",  fn: () => setSelectedMatches([...Array(Math.min(10, matches.length))].map((_, i) => i)) },
+                { label: "TOUT",    fn: () => setSelectedMatches(matches.map((_, i) => i)) },
+                { label: "EFFACER", fn: () => setSelectedMatches([]) },
+              ].map(btn => (
+                <button
+                  key={btn.label}
+                  onClick={btn.fn}
+                  style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: C.slate, padding: "4px 10px", borderRadius: 4, ...BEBAS, fontSize: 12, letterSpacing: 1, cursor: "pointer" }}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {matches.length === 0 ? (
           <p style={{ color: C.slate, fontSize: 14, textAlign: "center", padding: "32px 0" }}>
@@ -265,45 +361,69 @@ export default function AthleteFilePage() {
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {matches.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "12px 16px",
-                  background: i < 3 ? "rgba(255,203,5,0.04)" : "rgba(255,255,255,0.02)",
-                  border: "1px solid",
-                  borderColor: i === 0 ? "rgba(255,203,5,0.25)" : "rgba(255,255,255,0.05)",
-                  borderRadius: 8,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <span style={{ ...BEBAS, fontSize: i === 0 ? 28 : 22, color: i === 0 ? C.maize : C.slate, minWidth: 40 }}>
-                    #{i + 1}
-                  </span>
-                  <div>
-                    <p style={{ color: "#fff", fontWeight: 600, margin: "0 0 3px", fontSize: 14 }}>{m.name}</p>
-                    <p style={{ color: C.slate, fontSize: 12, margin: 0, fontFamily: "monospace" }}>
-                      {m.division === "USports" ? "USports" : m.division.replace("division_", "D")}
-                      {m.state && ` · ${m.state}`}
-                      {m.country === "CA" && " 🇨🇦"}
-                    </p>
+            {matches.map((m, i) => {
+              const isSelected = selectedMatches.includes(i)
+              return (
+                <div
+                  key={i}
+                  onClick={() => {
+                    if (!draftMode) return
+                    setSelectedMatches(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])
+                  }}
+                  style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "12px 16px",
+                    background: draftMode && isSelected
+                      ? "rgba(255,203,5,0.06)"
+                      : i < 3 ? "rgba(255,203,5,0.04)" : "rgba(255,255,255,0.02)",
+                    border: "1px solid",
+                    borderColor: draftMode && isSelected
+                      ? C.maize
+                      : (!draftMode && i === 0) ? "rgba(255,203,5,0.25)" : "rgba(255,255,255,0.05)",
+                    borderRadius: 8,
+                    cursor: draftMode ? "pointer" : "default",
+                    transition: "border-color 0.1s, background 0.1s",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    {draftMode && (
+                      <div style={{
+                        width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+                        border: `2px solid ${isSelected ? C.maize : "rgba(255,255,255,0.3)"}`,
+                        background: isSelected ? C.maize : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 12, color: C.navy, fontWeight: 700,
+                      }}>
+                        {isSelected && "✓"}
+                      </div>
+                    )}
+                    <span style={{ ...BEBAS, fontSize: i === 0 ? 28 : 22, color: i === 0 ? C.maize : C.slate, minWidth: 40 }}>
+                      #{i + 1}
+                    </span>
+                    <div>
+                      <p style={{ color: "#fff", fontWeight: 600, margin: "0 0 3px", fontSize: 14 }}>{m.name}</p>
+                      <p style={{ color: C.slate, fontSize: 12, margin: 0, fontFamily: "monospace" }}>
+                        {m.division === "USports" ? "USports" : m.division.replace("division_", "D")}
+                        {m.state && ` · ${m.state}`}
+                        {m.country === "CA" && " 🇨🇦"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: "rgba(255,203,5,0.1)", color: C.maize, fontFamily: "monospace" }}>
+                      🏊 {m.score_sportif}/50
+                    </span>
+                    <span style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: "rgba(93,186,120,0.1)", color: "#5dba78", fontFamily: "monospace" }}>
+                      🎓 {m.score_academique}/25
+                    </span>
+                    <span style={{ padding: "4px 12px", borderRadius: 6, fontSize: 13, fontWeight: 700, background: (!draftMode && i === 0) ? C.maize : "rgba(255,255,255,0.08)", color: (!draftMode && i === 0) ? C.navy : "#fff", fontFamily: "monospace" }}>
+                      {m.score_total}
+                    </span>
                   </div>
                 </div>
-
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: "rgba(255,203,5,0.1)", color: C.maize, fontFamily: "monospace" }}>
-                    🏊 {m.score_sportif}/50
-                  </span>
-                  <span style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, background: "rgba(93,186,120,0.1)", color: "#5dba78", fontFamily: "monospace" }}>
-                    🎓 {m.score_academique}/25
-                  </span>
-                  <span style={{ padding: "4px 12px", borderRadius: 6, fontSize: 13, fontWeight: 700, background: i === 0 ? C.maize : "rgba(255,255,255,0.08)", color: i === 0 ? C.navy : "#fff", fontFamily: "monospace" }}>
-                    {m.score_total}
-                  </span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
