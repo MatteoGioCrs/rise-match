@@ -214,7 +214,7 @@ export default function AthleteFilePage() {
           {times.length === 0 ? (
             <p style={{ color: C.slate, fontSize: 13 }}>Aucun temps enregistré.</p>
           ) : (
-            times.map((t, i) => (
+            times.map((t: any, i: number) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 14 }}>
                 <span style={{ color: C.slate, fontFamily: "monospace" }}>{t.event} · {t.basin}</span>
                 <span style={{ color: "#fff", fontFamily: "monospace", fontWeight: 600 }}>
