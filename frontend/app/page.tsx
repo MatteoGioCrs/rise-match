@@ -219,12 +219,18 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
   return (
     <header style={{ backgroundColor: C.navy, height: 72, borderBottom: `2px solid ${C.maize}`, position: "sticky", top: 0, zIndex: 100, flexShrink: 0 }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <button onClick={onHome} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
-          <div style={{ ...BEBAS, fontSize: 28, letterSpacing: 1, lineHeight: 1 }}>
-            <span style={{ color: C.maize }}>RISE</span><span style={{ color: "#fff" }}>.MATCH</span>
-          </div>
-          <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>Powered by RISE Athletics</div>
+        
+        {/* BOUTON LOGO */}
+        <button onClick={onHome} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          {/* L'image remplace le texte RISE.MATCH */}
+          <img 
+            src="/rise-logo.svg" 
+            alt="RISE Logo" 
+            style={{ height: "32px", width: "auto", marginBottom: "4px" }} 
+          />
+          <div style={{ fontSize: 11, color: C.slate }}>Powered by RISE Athletics</div>
         </button>
+
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {showNewSearch && onNewSearch && (
             <button onClick={onNewSearch} style={{ ...BEBAS, fontSize: 13, letterSpacing: 1, color: C.maize, background: "none", border: `1px solid ${C.maize}`, borderRadius: 6, padding: "6px 14px", cursor: "pointer" }}>
