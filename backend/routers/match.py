@@ -1,4 +1,6 @@
+import json
 import os
+import secrets
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -474,7 +476,23 @@ async def compute_match(body: dict):
         for r in results[:20]:
             r['team_times'] = {}
 
+    session_token = secrets.token_urlsafe(16)
+    try:
+        conn3 = await asyncpg.connect(os.environ["DATABASE_URL"])
+        top_name = results[0]["name"] if results else None
+        await conn3.execute(
+            """INSERT INTO search_sessions
+                   (session_token, gender, divisions, times_input, results_count, top_match)
+               VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+               ON CONFLICT (session_token) DO NOTHING""",
+            session_token, gender, divisions, json.dumps(times_input), len(results), top_name,
+        )
+        await conn3.close()
+    except Exception:
+        pass  # ne pas bloquer la réponse
+
     return {
+        "session_token": session_token,
         "scy_times": {k: round(v, 2) for k, v in scy_times.items()},
         "matches": results[:20]
     }
