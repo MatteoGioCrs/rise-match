@@ -150,7 +150,10 @@ export default function AthleteFilePage() {
 
   if (!session) return null
 
-  const times = session.times_input ?? []
+  const rawTimes = session?.times_input || [];
+  const times = typeof rawTimes === 'string' 
+    ? JSON.parse(rawTimes) 
+    : (Array.isArray(rawTimes) ? rawTimes : []);
   const statusCfg = STATUS_CFG[session.admin_status] ?? STATUS_CFG.nouveau
 
   return (
