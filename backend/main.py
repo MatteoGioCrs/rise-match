@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.match import router as match_router
 from routers.admin import router as admin_router
+from routers.auth import router as auth_router
 
 app = FastAPI()
 
@@ -14,6 +15,7 @@ app.add_middleware(
 
 app.include_router(match_router)
 app.include_router(admin_router)
+app.include_router(auth_router)
 
 
 @app.on_event("startup")
