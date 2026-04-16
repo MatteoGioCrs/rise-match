@@ -238,12 +238,12 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
         </button>
 
         {/* ── DROITE : Navigation ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           
           {showNewSearch && onNewSearch && (
             <button 
               onClick={onNewSearch} 
-              style={{ ...BEBAS, fontSize: 15, letterSpacing: 1, color: C.slate, background: "none", border: "none", cursor: "pointer", transition: "color 0.2s" }}
+              style={{ ...BEBAS, fontSize: 15, letterSpacing: 1, color: C.slate, background: "none", border: "none", cursor: "pointer", transition: "color 0.2s", marginRight: 8 }}
               onMouseEnter={e => e.currentTarget.style.color = C.white}
               onMouseLeave={e => e.currentTarget.style.color = C.slate}
             >
@@ -251,42 +251,64 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
             </button>
           )}
           
+          {/* Bouton Secondaire : L'Agence (Outline) */}
           <a 
             href="https://riseathletics.fr" 
             target="_blank" 
             rel="noopener noreferrer" 
-            style={{ ...BEBAS, fontSize: 15, letterSpacing: 1, color: C.slate, textDecoration: "none", transition: "color 0.2s" }}
-            onMouseEnter={e => e.currentTarget.style.color = C.white}
-            onMouseLeave={e => e.currentTarget.style.color = C.slate}
+            style={{ 
+              backgroundColor: "transparent",
+              color: C.maize,
+              border: `1px solid ${C.maize}`,
+              padding: "8px 18px",
+              borderRadius: 6,
+              ...BEBAS, 
+              fontSize: 15, 
+              letterSpacing: 1, 
+              textDecoration: "none", 
+              transition: "all 0.2s" 
+            }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = "rgba(255,203,5,0.1)"; e.currentTarget.style.color = C.maize; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = C.maize; }}
           >
             L'AGENCE ↗
           </a>
 
-          {/* Lien Admin discret (stealth) */}
+          {/* Bouton Secondaire : Admin (Outline) */}
           <Link 
             href="/admin" 
-            style={{ ...BEBAS, fontSize: 15, letterSpacing: 1, color: "rgba(255,255,255,0.2)", textDecoration: "none", transition: "color 0.2s" }}
-            onMouseEnter={e => e.currentTarget.style.color = C.slate}
-            onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
-            title="Accès Administrateur"
+            style={{ 
+              backgroundColor: "transparent",
+              color: C.maize,
+              border: `1px solid ${C.maize}`,
+              padding: "8px 18px",
+              borderRadius: 6,
+              ...BEBAS, 
+              fontSize: 15, 
+              letterSpacing: 1, 
+              textDecoration: "none", 
+              transition: "all 0.2s" 
+            }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = "rgba(255,203,5,0.1)"; e.currentTarget.style.color = C.maize; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = C.maize; }}
           >
             ADMIN
           </Link>
 
-          {/* Bouton Principal : Espace Client */}
+          {/* Bouton Principal : Espace Client (Solid) */}
           <Link 
             href="/client" 
             style={{ 
               backgroundColor: C.maize,
               color: C.navy,
-              padding: "10px 24px",
+              padding: "9px 24px",
               borderRadius: 6,
               ...BEBAS,
               fontSize: 16,
               letterSpacing: 1,
               textDecoration: "none",
               transition: "transform 0.2s, background-color 0.2s",
-              marginLeft: 8
+              marginLeft: 4
             }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "translateY(-2px)" }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
