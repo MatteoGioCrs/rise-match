@@ -121,6 +121,48 @@ async def get_me(authorization: str = Header(None)):
     finally:
         await conn.close()
 
+@router.post("/api/auth/link-session")
+async def link_session(body: dict, authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token manquant")
+    payload = verify_token(authorization.replace("Bearer ", ""))
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token invalide")
+
+    session_token = body.get("session_token")
+    if not session_token:
+        raise HTTPException(status_code=400, detail="session_token requis")
+
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        session = await conn.fetchrow(
+            "SELECT id FROM search_sessions WHERE session_token = $1", session_token
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Session non trouvée")
+
+        await conn.execute(
+            """UPDATE users SET session_tokens = array_append(session_tokens, $1)
+               WHERE id = $2 AND NOT ($1 = ANY(session_tokens))""",
+            session_token, payload["user_id"]
+        )
+
+        user = await conn.fetchrow(
+            "SELECT first_name, last_name FROM users WHERE id = $1", payload["user_id"]
+        )
+        if user:
+            label = f"{user['first_name']} {user['last_name']} — Recherche"
+            await conn.execute(
+                """UPDATE search_sessions SET admin_label = $1, user_id = $2
+                   WHERE session_token = $3 AND admin_label IS NULL""",
+                label, payload["user_id"], session_token
+            )
+
+        return {"success": True}
+    finally:
+        await conn.close()
+
+
 @router.get("/api/auth/my-matches")
 async def get_my_matches(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):

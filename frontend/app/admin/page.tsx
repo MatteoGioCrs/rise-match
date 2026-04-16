@@ -48,6 +48,10 @@ export default function AdminPage() {
   const [activatingUser, setActivatingUser] = useState<number | null>(null)
   const [planSelect,     setPlanSelect]     = useState<Record<number, string>>({})
 
+  const [selectedUser,         setSelectedUser]         = useState<any | null>(null)
+  const [userSessions,         setUserSessions]         = useState<any[]>([])
+  const [userSessionsLoading,  setUserSessionsLoading]  = useState(false)
+
   useEffect(() => {
     const stored = localStorage.getItem("rise_admin_token")
     if (stored) verifyToken(stored)
@@ -123,6 +127,20 @@ export default function AdminPage() {
       await fetchUsers()
     } catch { /* ignore */ }
     finally { setActivatingUser(null) }
+  }
+
+  async function loadUserSessions(user: any) {
+    setSelectedUser(user)
+    setUserSessionsLoading(true)
+    try {
+      const token = localStorage.getItem("rise_admin_token") ?? ""
+      const res = await fetch(`${API}/api/admin/users/${user.id}/sessions`, {
+        headers: { "x-admin-token": token },
+      })
+      const data = await res.json()
+      setUserSessions(data.sessions || [])
+    } catch { /* ignore */ }
+    finally { setUserSessionsLoading(false) }
   }
 
   async function patchSession(id: number, updates: Partial<Session>) {
@@ -396,8 +414,8 @@ export default function AdminPage() {
             <div
               key={user.id}
               style={{
-                background: C.navyLight,
-                border: `1px solid ${user.is_active ? "rgba(46,204,113,0.2)" : "rgba(255,255,255,0.08)"}`,
+                background: selectedUser?.id === user.id ? "rgba(255,203,5,0.04)" : C.navyLight,
+                border: `1px solid ${selectedUser?.id === user.id ? "rgba(255,203,5,0.35)" : user.is_active ? "rgba(46,204,113,0.2)" : "rgba(255,255,255,0.08)"}`,
                 borderRadius: 12,
                 padding: "16px 20px",
                 display: "flex",
@@ -433,7 +451,7 @@ export default function AdminPage() {
 
               {/* Actions */}
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {!user.is_active ? (
+                {!user.is_active && (
                   <>
                     <select
                       value={planSelect[user.id] ?? "match"}
@@ -451,18 +469,145 @@ export default function AdminPage() {
                       {activatingUser === user.id ? "..." : "ACTIVER →"}
                     </button>
                   </>
-                ) : (
-                  <button
-                    onClick={() => activateUser(user.id, false, user.plan)}
-                    disabled={activatingUser === user.id}
-                    style={{ background: "transparent", color: C.slate, border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, padding: "7px 16px", ...BEBAS, fontSize: 13, letterSpacing: 1, cursor: "pointer" }}
-                  >
-                    DÉSACTIVER
-                  </button>
                 )}
+                <button
+                  onClick={() => {
+                    if (selectedUser?.id === user.id) { setSelectedUser(null); setUserSessions([]) }
+                    else loadUserSessions(user)
+                  }}
+                  style={{ background: selectedUser?.id === user.id ? "rgba(255,203,5,0.15)" : "rgba(255,255,255,0.05)", border: `1px solid ${selectedUser?.id === user.id ? "rgba(255,203,5,0.4)" : "rgba(255,255,255,0.15)"}`, color: selectedUser?.id === user.id ? C.maize : C.slate, padding: "7px 16px", borderRadius: 6, ...BEBAS, fontSize: 13, letterSpacing: 1, cursor: "pointer" }}
+                >
+                  {selectedUser?.id === user.id ? "FERMER ✕" : "DOSSIER →"}
+                </button>
               </div>
             </div>
           ))}
+
+          {/* ── Fiche détaillée ─────────────────────────────────────────── */}
+          {selectedUser && (
+            <div style={{ marginTop: 12, background: C.navyLight, border: "1px solid rgba(255,203,5,0.2)", borderRadius: 16, padding: 28 }}>
+
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                <div>
+                  <p style={{ ...BEBAS, fontSize: 11, color: C.maize, letterSpacing: 3, margin: "0 0 4px" }}>DOSSIER ATHLÈTE</p>
+                  <h2 style={{ ...BEBAS, fontSize: 28, color: "#fff", margin: 0 }}>
+                    {selectedUser.first_name} {selectedUser.last_name}
+                  </h2>
+                  <p style={{ color: C.slate, fontSize: 13, margin: "4px 0 0", fontFamily: "Space Mono, monospace" }}>
+                    {selectedUser.email}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setSelectedUser(null); setUserSessions([]) }}
+                  style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: C.slate, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 12 }}
+                >
+                  ✕ Fermer
+                </button>
+              </div>
+
+              {/* Contrôles */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap", alignItems: "center" }}>
+
+                {/* Toggle actif/inactif */}
+                <button
+                  onClick={async () => {
+                    await activateUser(selectedUser.id, !selectedUser.is_active, selectedUser.plan ?? "match")
+                    setSelectedUser({ ...selectedUser, is_active: !selectedUser.is_active })
+                  }}
+                  style={{ padding: "7px 16px", borderRadius: 6, border: "none", cursor: "pointer", ...BEBAS, fontSize: 13, letterSpacing: 1, background: selectedUser.is_active ? "rgba(231,76,60,0.15)" : "rgba(46,204,113,0.15)", color: selectedUser.is_active ? "#e74c3c" : "#2ecc71" }}
+                >
+                  {selectedUser.is_active ? "DÉSACTIVER L'ACCÈS" : "ACTIVER L'ACCÈS"}
+                </button>
+
+                {/* Changer le plan */}
+                <select
+                  value={selectedUser.plan || "free"}
+                  onChange={async e => {
+                    const token = localStorage.getItem("rise_admin_token") ?? ""
+                    await fetch(`${API}/api/admin/users/${selectedUser.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json", "x-admin-token": token },
+                      body: JSON.stringify({ plan: e.target.value }),
+                    })
+                    setSelectedUser({ ...selectedUser, plan: e.target.value })
+                    await fetchUsers()
+                  }}
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", padding: "7px 12px", borderRadius: 6, fontSize: 12, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}
+                >
+                  <option value="free">FREE</option>
+                  <option value="match">MATCH — 29€/mois</option>
+                  <option value="accompagne">ACCOMPAGNÉ — 99€/mois</option>
+                </select>
+
+                {/* Lier une session manuellement */}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    id="manualSessionInput"
+                    placeholder="Token session à lier..."
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", padding: "7px 12px", borderRadius: 6, fontSize: 12, fontFamily: "Space Mono, monospace", width: 200, outline: "none" }}
+                  />
+                  <button
+                    onClick={async () => {
+                      const input = document.getElementById("manualSessionInput") as HTMLInputElement
+                      const sessionToken = input?.value?.trim()
+                      if (!sessionToken) return
+                      const token = localStorage.getItem("rise_admin_token") ?? ""
+                      await fetch(`${API}/api/admin/users/${selectedUser.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json", "x-admin-token": token },
+                        body: JSON.stringify({ add_session_token: sessionToken }),
+                      })
+                      input.value = ""
+                      await loadUserSessions(selectedUser)
+                    }}
+                    style={{ background: "transparent", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "7px 12px", borderRadius: 6, ...BEBAS, fontSize: 12, letterSpacing: 1, cursor: "pointer" }}
+                  >
+                    + LIER SESSION
+                  </button>
+                </div>
+              </div>
+
+              {/* Sessions liées */}
+              <div>
+                <p style={{ ...BEBAS, fontSize: 12, color: C.maize, letterSpacing: 2, margin: "0 0 12px" }}>
+                  RECHERCHES LIÉES ({userSessions.length})
+                </p>
+
+                {userSessionsLoading ? (
+                  <p style={{ color: C.slate, fontSize: 13, fontFamily: "Inter, sans-serif" }}>Chargement...</p>
+                ) : userSessions.length === 0 ? (
+                  <p style={{ color: C.slate, fontSize: 13, fontFamily: "Inter, sans-serif", fontStyle: "italic" }}>
+                    Aucune recherche liée à ce compte. Utilise « Lier session » pour en associer une manuellement.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {userSessions.map((s: any) => (
+                      <div
+                        key={s.id}
+                        onClick={() => router.push(`/admin/${s.id}`)}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "border-color 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,203,5,0.3)")}
+                        onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)")}
+                      >
+                        <div>
+                          <p style={{ color: "#fff", fontSize: 13, margin: "0 0 2px", fontFamily: "Inter, sans-serif", fontWeight: 500 }}>
+                            Session #{s.id}{s.top_match ? ` · Top match : ${s.top_match}` : ""}
+                          </p>
+                          <p style={{ color: C.slate, fontSize: 11, margin: 0, fontFamily: "Space Mono, monospace" }}>
+                            {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                            {" · "}{s.results_count ?? 0} résultats
+                            {s.published_matches ? " · ✓ Publié" : ""}
+                          </p>
+                        </div>
+                        <span style={{ color: C.maize, fontSize: 12, ...BEBAS, letterSpacing: 1 }}>VOIR →</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

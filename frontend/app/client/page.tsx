@@ -254,6 +254,11 @@ function ClientPortalInner() {
     </div>
   )
 
+  function goToNewSearch() {
+    localStorage.setItem("rise_link_next_session", "true")
+    router.push("/")
+  }
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.navy, color: C.white, ...INTER }}>
       <header style={{ backgroundColor: C.navyLight, height: 72, borderBottom: `1px solid rgba(255,255,255,0.1)`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", position: "sticky", top: 0, zIndex: 50 }}>
@@ -288,9 +293,9 @@ function ClientPortalInner() {
         {sessions.length === 0 ? (
           <div style={{ backgroundColor: C.navyLight, borderRadius: 12, padding: 48, textAlign: "center", border: `1px solid rgba(255,255,255,0.05)` }}>
             <p style={{ color: C.slate, fontSize: 15, marginBottom: 24 }}>Aucun match n'a encore été publié sur ton profil.</p>
-            <Link href="/" style={{ backgroundColor: "rgba(255,203,5,0.1)", color: C.maize, border: `1px solid ${C.maize}`, padding: "10px 20px", borderRadius: 6, ...BEBAS, fontSize: 16, textDecoration: "none", letterSpacing: 1 }}>
+            <button onClick={goToNewSearch} style={{ backgroundColor: "rgba(255,203,5,0.1)", color: C.maize, border: `1px solid ${C.maize}`, padding: "10px 20px", borderRadius: 6, ...BEBAS, fontSize: 16, cursor: "pointer", letterSpacing: 1 }}>
               LANCER UNE NOUVELLE RECHERCHE
-            </Link>
+            </button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>

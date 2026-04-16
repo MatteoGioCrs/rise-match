@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
-const API_URL = "https://rise-match-production.up.railway.app/api/match"
+const API_BASE = "https://rise-match-production.up.railway.app"
+const API_URL = `${API_BASE}/api/match`
 
 // ─── SCY Conversion ────────────────────────────────────────────────────────────
 
@@ -625,6 +626,21 @@ export default function Page() {
       if (!res.ok) throw new Error(`Erreur serveur : ${res.status}`)
       const data: ApiResponse = await res.json()
       setResults(data); setAppState("results")
+
+      // Auto-link session to user account if flag is set
+      const sessionToken = (data as any).session_token
+      if (sessionToken) {
+        const userToken = typeof window !== "undefined" ? localStorage.getItem("rise_user_token") : null
+        const linkFlag  = typeof window !== "undefined" ? localStorage.getItem("rise_link_next_session") : null
+        if (userToken && linkFlag) {
+          localStorage.removeItem("rise_link_next_session")
+          fetch(`${API_BASE}/api/auth/link-session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` },
+            body: JSON.stringify({ session_token: sessionToken }),
+          }).catch(() => {})
+        }
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erreur inconnue")
       setAppState("form")

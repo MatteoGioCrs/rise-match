@@ -222,3 +222,63 @@ async def activate_user(user_id: int, body: dict, x_admin_token: str = Header(No
         return {"success": True}
     finally:
         await conn.close()
+
+
+@router.get("/api/admin/users/{user_id}/sessions")
+async def get_user_sessions(user_id: int, x_admin_token: str = Header(None)):
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        user = await conn.fetchrow("SELECT session_tokens FROM users WHERE id = $1", user_id)
+        if not user or not user["session_tokens"]:
+            return {"sessions": []}
+        sessions = await conn.fetch("""
+            SELECT id, session_token, gender, times_input, results_count,
+                   top_match, created_at, admin_status, published_matches,
+                   admin_notes, admin_label
+            FROM search_sessions
+            WHERE session_token = ANY($1)
+            ORDER BY created_at DESC
+        """, user["session_tokens"])
+        result = []
+        for s in sessions:
+            d = dict(s)
+            if d.get("created_at"):
+                d["created_at"] = d["created_at"].isoformat()
+            result.append(d)
+        return {"sessions": result}
+    finally:
+        await conn.close()
+
+
+@router.patch("/api/admin/users/{user_id}")
+async def update_user(user_id: int, body: dict, x_admin_token: str = Header(None)):
+    """Met à jour plan, is_active, ou lie une session supplémentaire."""
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        if "add_session_token" in body:
+            session_token = body["add_session_token"]
+            await conn.execute("""
+                UPDATE users
+                SET session_tokens = array_append(session_tokens, $1)
+                WHERE id = $2 AND NOT ($1 = ANY(session_tokens))
+            """, session_token, user_id)
+
+        updates = []
+        params = []
+        i = 1
+        for field in ("plan", "is_active"):
+            if field in body:
+                updates.append(f"{field} = ${i}")
+                params.append(body[field])
+                i += 1
+        if updates:
+            params.append(user_id)
+            await conn.execute(
+                f"UPDATE users SET {', '.join(updates)} WHERE id = ${i}",
+                *params,
+            )
+        return {"success": True}
+    finally:
+        await conn.close()
