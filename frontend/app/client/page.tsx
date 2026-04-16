@@ -225,7 +225,7 @@ function ClientPortalInner() {
   )
 
   if (appState === "auth") return (
-    <AuthForm sessionToken={sessionToken} onSuccess={handleAuthSuccess} />
+    <AuthForm sessionToken={sessionToken as string | null} onSuccess={handleAuthSuccess} />
   )
 
   if (appState === "pending") return (
