@@ -651,7 +651,7 @@ export default function Page() {
         {/* HERO */}
         <section style={{ background: heroBg, minHeight: "calc(100vh - 72px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? "60px 20px 48px" : "80px 24px 60px", textAlign: "center", position: "relative" }}>
           <div style={{ display: "inline-block", border: "1px solid rgba(255,203,5,0.4)", borderRadius: 20, padding: "6px 16px", marginBottom: 28 }}>
-            <span style={{ ...BEBAS, fontSize: 13, color: C.maize, letterSpacing: 3 }}>🏊 NCAA · NAIA · USports · Canada</span>
+            <span style={{ ...BEBAS, fontSize: 13, color: C.maize, letterSpacing: 3 }}>🏊 NCAA · NAIA · NJCAA · USports </span>
           </div>
           <h1 style={{ ...BEBAS, lineHeight: 0.92, margin: "0 0 24px" }}>
             <div style={{ fontSize: isMobile ? 42 : 80, color: "#fff" }}>TROUVE TON UNIVERSITÉ</div>
@@ -669,7 +669,7 @@ export default function Page() {
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "scale(1.02)" }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
             >
-              COMMENCER — C&apos;EST GRATUIT →
+              COMMENCER →
             </button>
             <button
               onClick={handleDemoSearch}
@@ -690,7 +690,10 @@ export default function Page() {
           <div style={{ maxWidth: 700, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1px 1fr 1px 1fr", alignItems: "center" }}>
             <CounterStat target={600} suffix="+" label="Universités analysées" />
             <div style={{ height: isMobile ? 40 : 60, backgroundColor: "rgba(255,203,5,0.2)" }} />
-            <CounterStat target={50} suffix="+" label="Sports couverts" />
+            
+            {/* Changement : Focus exclusif sur la natation */}
+            <CounterStat target={600} suffix="+" label="Programmes de natation" />
+            
             <div style={{ height: isMobile ? 40 : 60, backgroundColor: "rgba(255,203,5,0.2)" }} />
             <CounterStat target={100} suffix="%" label="Gratuit à l'essai" />
           </div>
