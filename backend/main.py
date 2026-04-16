@@ -37,6 +37,19 @@ async def create_tables():
             published_matches JSONB
         )
     """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id             SERIAL PRIMARY KEY,
+            email          TEXT UNIQUE NOT NULL,
+            password_hash  TEXT NOT NULL,
+            first_name     TEXT,
+            last_name      TEXT,
+            created_at     TIMESTAMP DEFAULT NOW(),
+            is_active      BOOLEAN DEFAULT FALSE,
+            plan           TEXT DEFAULT 'free',
+            session_tokens TEXT[] DEFAULT '{}'
+        )
+    """)
     await conn.close()
 
 
