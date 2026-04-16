@@ -52,8 +52,8 @@ async def register(body: dict):
         
         # On insère hashed_password, pas password
         user_id = await conn.fetchval(
-            """INSERT INTO users (email, password_hash, first_name, last_name, is_active) 
-               VALUES ($1, $2, $3, $4, true) RETURNING id""",
+            """INSERT INTO users (email, password_hash, first_name, last_name, is_active)
+               VALUES ($1, $2, $3, $4, false) RETURNING id""",
             email, hashed_password, first_name, last_name
         )
 
@@ -73,7 +73,7 @@ async def register(body: dict):
 
         # Générer le vrai token
         token = make_token(user_id, email)
-        return {"access_token": token, "user": {"id": user_id, "email": email, "is_active": True}}
+        return {"access_token": token, "user": {"id": user_id, "email": email, "is_active": False}}
     finally:
         await conn.close()
 
