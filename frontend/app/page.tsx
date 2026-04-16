@@ -158,6 +158,7 @@ const C = {
   green:      "#2ECC71",
   orange:     "#F39C12",
   red:        "#E74C3C",
+  white: "#FFFFFF"
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -230,6 +231,27 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
             </button>
           )}
           
+          {/* NOUVEAU BOUTON : ESPACE CLIENT */}
+          <Link 
+            href="/client" 
+            style={{ 
+              backgroundColor: "transparent",
+              color: C.white,
+              border: `1px solid ${C.slate}`,
+              padding: "6px 14px",
+              borderRadius: 6,
+              ...BEBAS,
+              fontSize: 14,
+              letterSpacing: 1,
+              textDecoration: "none",
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.slate; e.currentTarget.style.color = C.white }}
+          >
+            ESPACE CLIENT
+          </Link>
+
           {/* Admin Link - Highly visible yellow box */}
           <Link 
              href="/admin" 
@@ -999,6 +1021,8 @@ export default function Page() {
 
   if (!results) return null
 
+  const sessionToken = (results as any).session_token || "";
+
   const filtered = results.matches.filter(match => {
     const ac = match.academic
     if (!ac) return true
@@ -1065,9 +1089,46 @@ export default function Page() {
           </div>
         )}
 
-        {/* Cards */}
+        {/* Cards - FREEMIUM GATE LIMITÉ À 5 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {filtered.map((match, idx) => {
+          {filtered.slice(0, 5).map((match, idx) => {
+            const isLocked = idx < 2; // Index 0 et 1 verrouillés
+
+            if (isLocked) {
+              return (
+                <div key={`locked-${idx}`} style={{ backgroundColor: C.navyLight, borderRadius: 12, border: `1px solid rgba(255,203,5,0.3)`, position: "relative", overflow: "hidden", padding: isMobile ? "14px 12px 12px" : "20px 20px 16px" }}>
+                  {/* Contenu flouté pour donner envie */}
+                  <div style={{ filter: "blur(8px)", opacity: 0.3, userSelect: "none", pointerEvents: "none" }}>
+                    <div style={{ display: "flex", gap: isMobile ? 8 : 12, alignItems: "flex-start" }}>
+                      <div style={{ ...BEBAS, fontSize: isMobile ? 32 : 48, color: idx === 0 ? C.maize : C.slateLight, lineHeight: 1, width: isMobile ? 40 : 58, flexShrink: 0, letterSpacing: -1 }}>#{idx + 1}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <h2 style={{ fontSize: isMobile ? 14 : 17, fontWeight: 600, color: "#fff", margin: 0, flex: 1 }}>UNIVERSITÉ MASQUÉE</h2>
+                          <div style={{ ...BEBAS, fontSize: 32, color: C.maize, lineHeight: 1 }}>98<span style={{ fontSize: 16 }}>/100</span></div>
+                        </div>
+                        <div style={{ fontSize: 12, color: C.slate, marginTop: 8 }}>NCAA D1 · ???</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Overlay Cadenas + Bouton d'inscription */}
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(11, 22, 40, 0.65)", zIndex: 10 }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
+                    <h4 style={{ ...BEBAS, fontSize: 22, color: C.maize, letterSpacing: 1, margin: "0 0 16px" }}>VOTRE TOP {idx + 1} MATCH</h4>
+                    <Link 
+                      href={`/client?session=${sessionToken}`}
+                      style={{ backgroundColor: C.maize, color: C.navy, padding: "10px 20px", borderRadius: 8, ...BEBAS, fontSize: 16, textDecoration: "none", letterSpacing: 1, transition: "opacity 0.2s" }} 
+                      onMouseEnter={e => e.currentTarget.style.opacity = "0.8"} 
+                      onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                    >
+                      DÉBLOQUER MES RÉSULTATS →
+                    </Link>
+                  </div>
+                </div>
+              )
+            }
+
+            // Normal Card pour index 2, 3, 4
             const sp    = match.score_sportif    ?? match.score ?? 0
             const sa    = match.score_academique ?? 0
             const sg    = match.score_geo        ?? 0
@@ -1226,7 +1287,28 @@ export default function Page() {
             )
           })}
         </div>
+
+        {/* CTA GLOBAL POUR VOIR TOUS LES MATCHS */}
+        {filtered.length > 5 && (
+          <div style={{ textAlign: "center", marginTop: 40 }}>
+            <h3 style={{ ...BEBAS, color: C.white, fontSize: 24, letterSpacing: 1, marginBottom: 16 }}>
+              TON POTENTIEL NE S'ARRÊTE PAS LÀ
+            </h3>
+            <p style={{ color: C.slate, marginBottom: 24, maxWidth: 500, margin: "0 auto 24px" }}>
+              L'algorithme a trouvé {filtered.length} universités qui correspondent à tes temps. Connecte-toi pour explorer l'intégralité de tes matchs et contacter les coachs.
+            </p>
+            <Link 
+              href={`/client?session=${sessionToken}`} 
+              style={{ display: "inline-block", backgroundColor: "rgba(255,203,5,0.1)", border: `1px solid ${C.maize}`, color: C.maize, padding: "16px 32px", borderRadius: 8, ...BEBAS, fontSize: 18, textDecoration: "none", letterSpacing: 1, transition: "all 0.2s" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.color = C.navy }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "rgba(255,203,5,0.1)"; e.currentTarget.style.color = C.maize }}
+            >
+              VOIR MES {filtered.length} MATCHS COMPLETS ET DÉTAILLÉS →
+            </Link>
+          </div>
+        )}
+
       </div>
     </div>
   )
-}
+}  
