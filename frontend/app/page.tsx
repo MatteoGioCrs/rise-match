@@ -226,9 +226,9 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
           <img 
             src="/rise-logo.svg" 
             alt="RISE Logo" 
-            style={{ height: "32px", width: "auto", marginBottom: "4px" }} 
+            style={{ height: "48px", width: "auto", marginBottom: "2px" }} 
           />
-          <div style={{ fontSize: 11, color: C.slate }}>Powered by RISE Athletics</div>
+          <div style={{ fontSize: 10, color: C.slate, letterSpacing: 0.5, marginLeft: 2 }}>Powered by RISE Athletics</div>
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
