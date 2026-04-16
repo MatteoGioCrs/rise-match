@@ -33,71 +33,70 @@ def verify_token(token: str) -> dict | None:
     except:
         return None
 
-@router.post("/api/auth/register")
+@router.post("/register")
 async def register(body: dict):
-    email = body.get("email", "").lower().strip()
-    password = body.get("password", "")
-    first_name = body.get("first_name", "")
-    last_name = body.get("last_name", "")
+    email = body.get("email")
+    password = body.get("password")
+    first_name = body.get("first_name")
+    last_name = body.get("last_name")
     session_token = body.get("session_token")
 
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email et mot de passe requis")
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Mot de passe trop court (8 caractères min)")
+    # 1. HACHER LE MOT DE PASSE AVANT INSERTION
+    hashed_password = hash_password(password)
 
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     try:
         existing = await conn.fetchval("SELECT id FROM users WHERE email = $1", email)
         if existing:
-            raise HTTPException(status_code=409, detail="Email déjà utilisé")
-
-        user_id = await conn.fetchval("""
-            INSERT INTO users (email, password_hash, first_name, last_name, session_tokens)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id
-        """, email, hash_password(password), first_name, last_name,
-            [session_token] if session_token else [])
+            raise HTTPException(status_code=400, detail="Email déjà utilisé")
+        
+        # On insère hashed_password, pas password
+        user_id = await conn.fetchval(
+            """INSERT INTO users (email, password_hash, first_name, last_name, is_active) 
+               VALUES ($1, $2, $3, $4, true) RETURNING id""",
+            email, hashed_password, first_name, last_name
+        )
 
         if session_token:
-            label = f"{first_name} {last_name}".strip() or email
-            await conn.execute("""
-                UPDATE search_sessions
-                SET admin_label = $1
-                WHERE session_token = $2 AND admin_label IS NULL
-            """, label, session_token)
+            await conn.execute(
+                "UPDATE search_sessions SET user_id = $1 WHERE session_token = $2",
+                user_id, session_token
+            )
+            # Récupérer l'ID de session pour le lier au user
+            session_id = await conn.fetchval("SELECT id FROM search_sessions WHERE session_token = $1", session_token)
+            if session_id:
+                # Ajouter l'ID à l'array session_tokens de l'utilisateur
+                await conn.execute(
+                    "UPDATE users SET session_tokens = array_append(session_tokens, $1) WHERE id = $2",
+                    session_token, user_id
+                )
 
-        return {
-            "user_id": user_id,
-            "email": email,
-            "first_name": first_name,
-            "last_name": last_name,
-            "is_active": False,
-            "token": make_token(user_id, email)
-        }
+        # Générer le vrai token
+        token = make_token(user_id, email)
+        return {"access_token": token, "user": {"id": user_id, "email": email, "is_active": True}}
     finally:
         await conn.close()
 
-@router.post("/api/auth/login")
-async def login(body: dict):
-    email = body.get("email", "").lower().strip()
-    password = body.get("password", "")
 
+@router.post("/login")
+async def login(body: dict):
+    email = body.get("email")
+    password = body.get("password")
+    
+    # 2. HACHER LE MOT DE PASSE AVANT DE COMPARER AVEC LA BDD
+    hashed_password = hash_password(password)
+    
     conn = await asyncpg.connect(os.environ["DATABASE_URL"])
     try:
-        user = await conn.fetchrow("SELECT * FROM users WHERE email = $1", email)
-        if not user or user["password_hash"] != hash_password(password):
-            raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
-
-        return {
-            "user_id": user["id"],
-            "email": user["email"],
-            "first_name": user["first_name"],
-            "last_name": user["last_name"],
-            "is_active": user["is_active"],
-            "plan": user["plan"],
-            "token": make_token(user["id"], email)
-        }
+        # On compare avec hashed_password
+        user = await conn.fetchrow("SELECT * FROM users WHERE email = $1 AND password_hash = $2", email, hashed_password)
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Identifiants incorrects")
+        
+        # Générer le vrai token
+        token = make_token(user["id"], user["email"])
+        return {"access_token": token, "user": dict(user)}
     finally:
         await conn.close()
 
