@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 const API = "https://rise-match-production.up.railway.app"
 
@@ -30,6 +31,7 @@ type Session = {
 }
 
 export default function AdminPage() {
+  const router = useRouter()
   const [state,    setState]    = useState<"login" | "dashboard">("login")
   const [password, setPassword] = useState("")
   const [error,    setError]    = useState("")
@@ -324,12 +326,18 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                {/* Date + token */}
-                <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2 }}>
+                {/* Date + token + link */}
+                <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
                   <div style={{ fontSize: 12, color: C.slate }}>{fmt(s.created_at)}</div>
-                  <div style={{ fontSize: 10, color: "rgba(138,155,176,0.4)", marginTop: 4, fontFamily: "monospace" }}>
+                  <div style={{ fontSize: 10, color: "rgba(138,155,176,0.4)", fontFamily: "monospace" }}>
                     {s.session_token?.slice(0, 8)}…
                   </div>
+                  <button
+                    onClick={() => router.push(`/admin/${s.id}`)}
+                    style={{ background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: "Inter", whiteSpace: "nowrap" }}
+                  >
+                    Voir →
+                  </button>
                 </div>
               </div>
             )

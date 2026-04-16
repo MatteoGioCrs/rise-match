@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import time
 
@@ -80,6 +81,65 @@ async def update_session(session_id: int, body: dict, _: None = Depends(verify_a
         await conn.execute(
             f"UPDATE search_sessions SET {', '.join(updates)} WHERE id = ${i}",
             *params,
+        )
+        return {"ok": True}
+    finally:
+        await conn.close()
+
+
+@router.get("/api/admin/sessions/{session_id}/detail")
+async def get_session_detail(session_id: int, x_admin_token: str = Header(None)):
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        row = await conn.fetchrow(
+            "SELECT * FROM search_sessions WHERE id = $1", session_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Session non trouvée")
+        d = dict(row)
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+        return {"session": d}
+    finally:
+        await conn.close()
+
+
+@router.post("/api/admin/sessions/{session_id}/rematch")
+async def rematch_session(session_id: int, x_admin_token: str = Header(None)):
+    """Relance le matching avec les paramètres originaux de la session."""
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        row = await conn.fetchrow(
+            "SELECT * FROM search_sessions WHERE id = $1", session_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Session non trouvée")
+        times_input = row["times_input"]
+        if isinstance(times_input, str):
+            times_input = json.loads(times_input)
+        gender    = row["gender"] or "M"
+        divisions = list(row["divisions"] or ["division_1", "division_2", "division_3", "division_4"])
+    finally:
+        await conn.close()
+
+    from routers.match import compute_match
+    return await compute_match({
+        "times":     times_input,
+        "gender":    gender,
+        "divisions": divisions,
+    })
+
+
+@router.patch("/api/admin/sessions/{session_id}/notes")
+async def update_notes(session_id: int, body: dict, x_admin_token: str = Header(None)):
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        await conn.execute(
+            "UPDATE search_sessions SET admin_notes = $1 WHERE id = $2",
+            body.get("notes"), session_id,
         )
         return {"ok": True}
     finally:
