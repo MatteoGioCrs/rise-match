@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 const API_URL = "https://rise-match-production.up.railway.app/api/match"
 
@@ -228,6 +229,22 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
               ← NOUVELLE RECHERCHE
             </button>
           )}
+          
+          {/* Admin Link - Very faint until hovered */}
+          <Link 
+             href="/admin" 
+             style={{ 
+               fontSize: 10, // Slightly smaller than the main link
+               color: "rgba(255,255,255,0.1)", // Very low opacity
+               textDecoration: "none",
+               transition: "color 0.2s"
+             }}
+             onMouseEnter={e => (e.currentTarget.style.color = C.maize)}
+             onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.1)")}
+          >
+             admin
+          </Link>
+
           <a href="https://riseathletics.fr" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: C.slate, textDecoration: "none" }}>
             riseathletics.fr ↗
           </a>
