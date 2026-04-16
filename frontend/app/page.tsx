@@ -230,19 +230,25 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
             </button>
           )}
           
-          {/* Admin Link - Very faint until hovered */}
+          {/* Admin Link - Highly visible yellow box */}
           <Link 
              href="/admin" 
              style={{ 
-               fontSize: 10, // Slightly smaller than the main link
-               color: "rgba(255,255,255,0.1)", // Very low opacity
+               backgroundColor: C.maize,
+               color: C.navy,
+               padding: "4px 10px",
+               borderRadius: 4,
+               fontSize: 11,
+               fontWeight: "bold",
+               textTransform: "uppercase",
+               letterSpacing: 1,
                textDecoration: "none",
-               transition: "color 0.2s"
+               transition: "opacity 0.2s"
              }}
-             onMouseEnter={e => (e.currentTarget.style.color = C.maize)}
-             onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.1)")}
+             onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
+             onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
           >
-             admin
+             Admin
           </Link>
 
           <a href="https://riseathletics.fr" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: C.slate, textDecoration: "none" }}>
