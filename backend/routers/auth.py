@@ -33,7 +33,7 @@ def verify_token(token: str) -> dict | None:
     except:
         return None
 
-@router.post("/register")
+@router.post("/api/auth/register")
 async def register(body: dict):
     email = body.get("email")
     password = body.get("password")
@@ -78,7 +78,7 @@ async def register(body: dict):
         await conn.close()
 
 
-@router.post("/login")
+@router.post("/api/auth/login")
 async def login(body: dict):
     email = body.get("email")
     password = body.get("password")
