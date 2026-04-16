@@ -345,15 +345,27 @@ export default function AdminPage() {
                       {s.top_match && <span style={{ color: C.maize }}>→ {s.top_match}</span>}
                     </div>
 
-                    {s.times_input && s.times_input.length > 0 && (
+                    {(() => {
+                    // 1. On sécurise la lecture des temps (String -> Array)
+                    const rawTimes = s.times_input || [];
+                    const times = typeof rawTimes === 'string' 
+                      ? JSON.parse(rawTimes) 
+                      : (Array.isArray(rawTimes) ? rawTimes : []);
+
+                    // 2. Si le tableau est vide, on n'affiche rien
+                    if (times.length === 0) return null;
+
+                    // 3. S'il y a des temps, on affiche les "pilules"
+                    return (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {s.times_input.map((t, i) => (
+                        {times.map((t: any, i: number) => (
                           <span key={i} style={{ background: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.2)", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: C.maize, fontFamily: "monospace" }}>
                             {t.event} {t.basin} {typeof t.time_seconds === "number" ? t.time_seconds.toFixed(2) : t.time_seconds}s
                           </span>
                         ))}
                       </div>
-                    )}
+                    );
+                  })()}
                   </div>
 
                   <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
