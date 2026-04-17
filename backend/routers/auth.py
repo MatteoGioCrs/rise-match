@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Header
-import asyncpg, os, hashlib, hmac, base64, time
+import asyncpg, os, hashlib, hmac, base64, time, json
 
 router = APIRouter()
 
@@ -209,16 +209,30 @@ async def get_my_matches(authorization: str = Header(None)):
         sessions = await conn.fetch("""
             SELECT id, session_token, created_at, admin_status,
                    times_input, results_count, top_match,
-                   published_matches, admin_notes
+                   published_matches, admin_notes, admin_label
             FROM search_sessions
             WHERE session_token = ANY($1)
             ORDER BY created_at DESC
         """, user["session_tokens"] or [])
 
+        result = []
+        for s in sessions:
+            d = dict(s)
+            if d.get("created_at"):
+                d["created_at"] = d["created_at"].isoformat()
+            # Ensure published_matches is always a list or None, never a raw string
+            pm = d.get("published_matches")
+            if isinstance(pm, str):
+                try:
+                    d["published_matches"] = json.loads(pm)
+                except Exception:
+                    d["published_matches"] = None
+            result.append(d)
+
         return {
             "is_active": True,
             "plan": user["plan"],
-            "sessions": [dict(s) for s in sessions]
+            "sessions": result
         }
     finally:
         await conn.close()

@@ -299,17 +299,30 @@ function ClientPortalInner() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            {sessions.map((session, i) => (
+            {sessions.map((session, i) => {
+              // Normalize published_matches: backend may return a JSON string instead of a parsed array
+              let publishedMatches: any[] | null = null
+              if (Array.isArray(session.published_matches)) {
+                publishedMatches = session.published_matches
+              } else if (typeof session.published_matches === "string") {
+                try { publishedMatches = JSON.parse(session.published_matches) } catch { publishedMatches = null }
+              }
+
+              return (
               <div key={i} style={{ backgroundColor: C.navyLight, borderRadius: 12, border: `1px solid rgba(255,255,255,0.05)`, overflow: "hidden" }}>
                 <div style={{ padding: "16px 24px", borderBottom: `1px solid rgba(255,255,255,0.05)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, margin: 0, letterSpacing: 1 }}>{session.label}</h2>
-                  <span style={{ fontSize: 12, color: C.slate }}>Publié le {new Date(session.created_at).toLocaleDateString("fr-FR")}</span>
+                  <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, margin: 0, letterSpacing: 1 }}>
+                    {session.admin_label || `Session #${session.id}`}
+                  </h2>
+                  <span style={{ fontSize: 12, color: C.slate }}>
+                    {session.created_at ? `Publié le ${new Date(session.created_at).toLocaleDateString("fr-FR")}` : ""}
+                  </span>
                 </div>
-                
+
                 <div style={{ padding: 24 }}>
-                  {session.published_matches ? (
+                  {Array.isArray(publishedMatches) && publishedMatches.length > 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {session.published_matches.map((match: any, idx: number) => {
+                      {publishedMatches.map((match: any, idx: number) => {
                         const isNCAA = typeof match.team_id === "number"
                         return (
                         <div key={idx} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 8, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid rgba(255,255,255,0.02)`, cursor: isNCAA ? "pointer" : "default", opacity: isNCAA ? 1 : 0.85 }}>
@@ -353,7 +366,8 @@ function ClientPortalInner() {
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </main>
