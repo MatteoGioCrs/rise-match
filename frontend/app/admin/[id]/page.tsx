@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
+import ChatWidget from "../../components/ChatWidget"
+import DocumentsSection from "../../components/DocumentsSection"
 
 const API  = "https://rise-match-production.up.railway.app"
 const BEBAS = { fontFamily: "'Bebas Neue', sans-serif" } as const
@@ -42,6 +44,7 @@ type Session = {
   admin_status: string
   admin_notes: string | null
   published_matches: Match[] | null
+  user_id: number | null
 }
 
 export default function AthleteFilePage() {
@@ -269,7 +272,42 @@ export default function AthleteFilePage() {
         </div>
       </div>
 
-      {/* Section 3 — Matchs */}
+      {/* Section 3 — Messagerie */}
+      {session.user_id ? (
+        <div style={{ marginBottom: 24 }}>
+          <ChatWidget
+            mode="admin"
+            userId={session.user_id}
+            adminToken={token ?? undefined}
+            userName={session.admin_label ?? undefined}
+          />
+        </div>
+      ) : (
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+          <p style={{ color: C.slate, fontSize: 13, margin: 0, fontStyle: "italic" }}>
+            💬 Messagerie indisponible — cette session n'est pas encore liée à un compte athlète.
+          </p>
+        </div>
+      )}
+
+      {/* Section 4 — Documents */}
+      {session.user_id ? (
+        <div style={{ marginBottom: 24 }}>
+          <DocumentsSection
+            mode="admin"
+            userId={session.user_id}
+            adminToken={token ?? undefined}
+          />
+        </div>
+      ) : (
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+          <p style={{ color: C.slate, fontSize: 13, margin: 0, fontStyle: "italic" }}>
+            📁 Documents indisponibles — cette session n'est pas encore liée à un compte athlète.
+          </p>
+        </div>
+      )}
+
+      {/* Section 5 — Matchs */}
       <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24 }}>
 
         {/* Section header */}

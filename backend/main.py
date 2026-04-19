@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers.match import router as match_router
 from routers.admin import router as admin_router
 from routers.auth import router as auth_router
+from routers.messages import router as messages_router
+from routers.documents import router as documents_router
 
 app = FastAPI()
 
@@ -20,6 +22,8 @@ app.add_middleware(
 app.include_router(match_router)
 app.include_router(admin_router)
 app.include_router(auth_router)
+app.include_router(messages_router)
+app.include_router(documents_router)
 
 
 @app.on_event("startup")
@@ -61,6 +65,31 @@ async def create_tables():
     await conn.execute("""
         ALTER TABLE search_sessions
         ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS documents (
+            id           SERIAL PRIMARY KEY,
+            user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            uploaded_by  TEXT NOT NULL,
+            file_name    TEXT NOT NULL,
+            file_url     TEXT NOT NULL,
+            file_type    TEXT,
+            file_size    INTEGER,
+            label        TEXT,
+            created_at   TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id          SERIAL PRIMARY KEY,
+            user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sender      TEXT NOT NULL,
+            sender_name TEXT,
+            content     TEXT NOT NULL,
+            is_read     BOOLEAN DEFAULT FALSE,
+            created_at  TIMESTAMP DEFAULT NOW(),
+            session_id  INTEGER REFERENCES search_sessions(id) ON DELETE SET NULL
+        )
     """)
     await conn.close()
 

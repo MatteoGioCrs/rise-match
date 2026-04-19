@@ -3,6 +3,8 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import ChatWidget from "../components/ChatWidget"
+import DocumentsSection from "../components/DocumentsSection"
 
 const API = "https://rise-match-production.up.railway.app"
 
@@ -160,9 +162,11 @@ function ClientPortalInner() {
   const router = useRouter()
   const sessionToken = searchParams.get('session')
   
-  const [appState, setAppState] = useState<"loading" | "auth" | "pending" | "dashboard">("loading")
-  const [user, setUser] = useState<any>(null)
-  const [sessions, setSessions] = useState<any[]>([])
+  const [appState, setAppState]   = useState<"loading" | "auth" | "pending" | "dashboard">("loading")
+  const [user, setUser]           = useState<any>(null)
+  const [sessions, setSessions]   = useState<any[]>([])
+  const [userToken, setUserToken] = useState<string | null>(null)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     const token = localStorage.getItem("rise_user_token")
@@ -185,17 +189,23 @@ function ClientPortalInner() {
       }
       const userData = await res.json()
       setUser(userData)
+      setUserToken(token)
 
       if (!userData.is_active) {
         setAppState("pending")
         return
       }
 
-      const matchRes = await fetch(`${API}/api/auth/my-matches`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const [matchRes, unreadRes] = await Promise.all([
+        fetch(`${API}/api/auth/my-matches`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API}/api/messages/unread-count`, { headers: { Authorization: `Bearer ${token}` } }),
+      ])
       const matchData = await matchRes.json()
       setSessions(matchData.sessions || [])
+      if (unreadRes.ok) {
+        const unreadData = await unreadRes.json()
+        setUnreadCount(unreadData.count || 0)
+      }
       setAppState("dashboard")
     } catch {
       setAppState("auth")
@@ -270,6 +280,11 @@ function ClientPortalInner() {
           </Link>
           <span style={{ color: C.slate, fontSize: 14 }}>|</span>
           <span style={{ ...BEBAS, fontSize: 18, color: C.white, letterSpacing: 1 }}>DASHBOARD ATHLÈTE</span>
+          {unreadCount > 0 && (
+            <span style={{ backgroundColor: C.maize, color: C.navy, borderRadius: 999, minWidth: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, padding: "0 6px" }}>
+              {unreadCount}
+            </span>
+          )}
         </div>
         <div style={{ display: "flex", gap: 16 }}>
           <button onClick={handleLogout} style={{ backgroundColor: "rgba(231,76,60,0.1)", border: `1px solid ${C.red}`, color: C.red, padding: "8px 16px", borderRadius: 6, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}>
@@ -370,6 +385,18 @@ function ClientPortalInner() {
             })}
           </div>
         )}
+
+        {/* Section Messages */}
+        <div style={{ marginTop: 48 }}>
+          <h2 style={{ ...BEBAS, fontSize: 28, color: C.white, margin: "0 0 16px", letterSpacing: 1 }}>MESSAGERIE</h2>
+          <ChatWidget mode="athlete" userToken={userToken ?? undefined} />
+        </div>
+
+        {/* Section Documents */}
+        <div style={{ marginTop: 40, marginBottom: 48 }}>
+          <h2 style={{ ...BEBAS, fontSize: 28, color: C.white, margin: "0 0 16px", letterSpacing: 1 }}>MES DOCUMENTS</h2>
+          <DocumentsSection mode="athlete" userToken={userToken ?? undefined} />
+        </div>
       </main>
     </div>
   )

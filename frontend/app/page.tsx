@@ -512,7 +512,13 @@ const TOOLTIP_TOTAL = (
 
 interface TimeEntry { id: number; event: string; basin: string; time: string }
 
-interface EventMatch { athlete_time: number; team_best: number; ratio: number; rang?: number; pts?: number }
+interface EventMatch {
+  athlete_time: number; team_best: number; ratio: number
+  rang?: number; rang_futur?: number; pts?: number
+  team_size?: number; percentile?: number
+  athlete_wa_pts?: number; rang_wa?: number; team_wa_points?: number[]
+  data_quality?: string
+}
 
 interface AcademicData {
   admission_rate: number | null; tuition_out_state: number | null
@@ -530,6 +536,12 @@ interface AcademicData {
 
 interface TeamTime { seconds: number; display: string }
 
+interface WaSummary {
+  athlete_total_wa: number; rang_wa_global: number
+  team_total_size: number; percentile_global: number
+  team_wa_sorted: number[]
+}
+
 interface MatchResult {
   team_id: number | string; name: string; division: string
   state: string; city: string; country: string
@@ -540,6 +552,7 @@ interface MatchResult {
   events: Record<string, EventMatch>
   academic: AcademicData | null
   team_times: Record<string, TeamTime>
+  wa_summary?: WaSummary
 }
 
 interface ApiResponse { scy_times: Record<string, number>; matches: MatchResult[]; error?: string; session_token?: string }
@@ -1248,14 +1261,29 @@ export default function Page() {
                       <span style={{ fontSize: 12, color: C.slate }}>{match.state}{match.city ? ` · ${match.city}` : ""}</span>
                     </div>
 
-                    {/* Rang estimé */}
+                    {/* Rang estimé enrichi */}
                     {rang !== null && rang !== undefined && (
-                      <div style={{ marginTop: 10 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 6, backgroundColor: rangBg ?? "transparent", color: rangColor ?? C.slate, border: `1px solid ${rangColor ?? C.slate}`, display: "inline-block" }}>
-                          📍 Rang estimé #{rang} dans l&apos;équipe · basé sur le roster actuel
-                        </span>
-                        <p style={{ fontSize: 11, color: C.slate, marginTop: 4, marginBottom: 0, fontStyle: "italic" }}>
-                          *Estimation basée sur les temps actuels. Les nouvelles recrues peuvent modifier ce classement.
+                      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5 }}>
+                        {/* Ligne 1 — rang par temps + percentile */}
+                        {(() => {
+                          const firstEv = Object.entries(match.events).find(([, e]) => e.rang === rang && e.data_quality !== 'insufficient')
+                          const evName   = firstEv?.[0] ?? null
+                          const teamSize = firstEv?.[1]?.team_size ?? null
+                          const pct      = firstEv?.[1]?.percentile ?? null
+                          return (
+                            <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 6, backgroundColor: rangBg ?? "transparent", color: rangColor ?? C.slate, border: `1px solid ${rangColor ?? C.slate}`, display: "inline-block" }}>
+                              ⏱ Rang #{rang}{teamSize ? ` sur ${teamSize}` : ""}{evName ? ` · ${evName}` : ""}{pct !== null ? ` · top ${pct}%` : ""}
+                            </span>
+                          )
+                        })()}
+                        {/* Ligne 2 — classement WA global */}
+                        {match.wa_summary && match.wa_summary.team_total_size > 0 && (
+                          <span style={{ ...MONO, fontSize: isMobile ? 10 : 11, padding: "4px 10px", borderRadius: 6, backgroundColor: "rgba(255,203,5,0.08)", color: C.maize, border: "1px solid rgba(255,203,5,0.2)", display: "inline-block" }}>
+                            🏆 #{match.wa_summary.rang_wa_global}/{match.wa_summary.team_total_size} au classement général WA · {match.wa_summary.athlete_total_wa} pts · top {match.wa_summary.percentile_global}%
+                          </span>
+                        )}
+                        <p style={{ fontSize: 11, color: C.slate, marginTop: 2, marginBottom: 0, fontStyle: "italic" }}>
+                          *Basé sur les temps actuels du roster. Les recrues 2025-26 peuvent modifier ce classement.
                         </p>
                       </div>
                     )}

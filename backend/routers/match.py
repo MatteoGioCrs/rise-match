@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import asyncpg
 from fastapi import APIRouter
-from algo.conversion import convert_to_scy
+from algo.conversion import convert_to_scy, FACTEURS_LCM_TO_SCY
 
 router = APIRouter()
 
@@ -15,6 +15,36 @@ USPORTS_EVENT_MAP = {
     '1000FR': '800FR_LCM',
     '1650FR': '1500FR_LCM',
 }
+
+WORLD_RECORDS_SCY = {
+    'M': {
+        '50FR':   18.01,  '100FR':  39.90,  '200FR':  89.28,
+        '500FR':  239.75, '1000FR': 503.44, '1650FR': 839.67,
+        '50BA':   20.63,  '100BA':  43.35,  '200BA':  95.68,
+        '50BR':   23.67,  '100BR':  51.05,  '200BR':  113.44,
+        '50FL':   20.00,  '100FL':  43.00,  '200FL':  98.35,
+        '200IM':  98.80,  '400IM':  214.23,
+    },
+    'F': {
+        '50FR':   20.37,  '100FR':  44.84,  '200FR':  100.82,
+        '500FR':  270.43, '1000FR': 559.86, '1650FR': 929.63,
+        '50BA':   23.10,  '100BA':  49.05,  '200BA':  108.53,
+        '50BR':   26.58,  '100BR':  57.13,  '200BR':  125.56,
+        '50FL':   22.27,  '100FL':  48.11,  '200FL':  108.74,
+        '200IM':  110.51, '400IM':  234.56,
+    },
+}
+
+
+def calc_wa_points(event: str, gender: str, time_seconds: float) -> int:
+    """Points World Aquatics : 1000 × (WR / Temps)²"""
+    wr = WORLD_RECORDS_SCY.get(gender, {}).get(event)
+    if not wr or time_seconds <= 0:
+        return 0
+    try:
+        return max(0, round(1000 * (wr / time_seconds) ** 2))
+    except Exception:
+        return 0
 
 REGIONS = {
     "east":    ["ME","NH","VT","MA","RI","CT","NY","NJ","PA","MD","DE","VA","WV","NC","SC","GA","FL"],
@@ -45,41 +75,65 @@ def academic_grade(ac):
     else: return 'F'
 
 
-def calc_sport_score(athlete_times, team_event_data):
+def calc_sport_score(athlete_times, team_ev_data, gender='M'):
     """
-    athlete_times     : {event: seconds}
-    team_event_data   : {event: {'active': [times...], 'departing': [times...]}}
-    Returns (score_sportif, event_scores, relay_bonus, departing_bonus, rang_estime)
+    athlete_times : {event: seconds}
+    team_ev_data  : {event: {'active': [times...], 'departing': [times...]}}
+    gender        : 'M' | 'F' — pour les points World Aquatics
+    Returns (score_sportif, event_scores, relay_bonus, departing_bonus, rang_estime, wa_summary)
     """
-    event_pts      = []
-    event_scores   = {}
-    top4_by_stroke = {}
+    event_pts       = []
+    event_scores    = {}
+    top4_by_stroke  = {}
     departing_bonus = 0
     rang_estime     = None
 
     for event, athlete_time in athlete_times.items():
-        if event not in team_event_data:
+        if event not in team_ev_data:
             continue
-        ev_data        = team_event_data[event]
-        active_times   = sorted(ev_data['active'])
+        ev_data         = team_ev_data[event]
+        active_times    = sorted(ev_data['active'])
         departing_times = ev_data['departing']
 
         if not active_times:
             continue
 
-        team_best   = active_times[0]
+        team_size     = len(active_times)
+        team_best     = active_times[0]
         faster_active = sum(1 for t in active_times if t < athlete_time)
-        rang        = faster_active + 1
-        gap         = (athlete_time - team_best) / team_best
+        rang          = faster_active + 1
+        gap           = (athlete_time - team_best) / team_best
+        ratio         = athlete_time / team_best if team_best > 0 else 999
+        percentile    = round((1 - faster_active / team_size) * 100) if team_size > 1 else 100
+
+        athlete_wa_pts = calc_wa_points(event, gender, athlete_time)
+        team_wa_points = sorted(
+            [calc_wa_points(event, gender, t) for t in active_times],
+            reverse=True,
+        )
+        rang_wa = sum(1 for p in team_wa_points if p > athlete_wa_pts) + 1
+
+        if team_size < 3:
+            event_scores[event] = {
+                'athlete_time':   round(athlete_time, 2),
+                'team_best':      round(team_best, 2),
+                'ratio':          round(ratio, 3),
+                'rang':           rang,
+                'team_size':      team_size,
+                'athlete_wa_pts': athlete_wa_pts,
+                'data_quality':   'insufficient',
+                'note':           f'Seulement {team_size} nageur(s) dans cette épreuve',
+            }
+            continue
 
         if gap < -0.04:
-            pts = 5       # trop dominant
+            pts = 5
         elif rang == 1:
-            pts = 15      # #1 de l'équipe
+            pts = 15
         elif rang <= 4:
-            pts = 25      # zone idéale relay
+            pts = 25
         elif rang <= 8:
-            pts = 15      # compétitif
+            pts = 15
         elif rang <= 12:
             pts = 8
         else:
@@ -87,34 +141,62 @@ def calc_sport_score(athlete_times, team_event_data):
 
         event_pts.append(pts)
 
-        # Relay bonus : top 4 sur 2+ épreuves de même nage
         stroke = event.split('_')[0].lstrip('0123456789')
         if rang <= 4:
             top4_by_stroke[stroke] = top4_by_stroke.get(stroke, 0) + 1
 
-        # Departing bonus
         if any(t < athlete_time for t in departing_times):
             departing_bonus = 5
 
-        ratio = athlete_time / team_best if team_best > 0 else 999
+        rang_futur = max(1, rang - sum(1 for t in departing_times if t < athlete_time))
+
         event_scores[event] = {
-            'athlete_time': round(athlete_time, 2),
-            'team_best':    round(team_best, 2),
-            'ratio':        round(ratio, 3),
-            'rang':         rang,
-            'pts':          pts,
+            'athlete_time':   round(athlete_time, 2),
+            'team_best':      round(team_best, 2),
+            'ratio':          round(ratio, 3),
+            'rang':           rang,
+            'rang_futur':     rang_futur,
+            'team_size':      team_size,
+            'percentile':     percentile,
+            'athlete_wa_pts': athlete_wa_pts,
+            'rang_wa':        rang_wa,
+            'team_wa_points': team_wa_points,
+            'pts':            pts,
+            'data_quality':   'ok',
         }
         if rang_estime is None:
             rang_estime = rang
 
     if not event_pts:
-        return None, {}, 0, 0, None
+        return None, {}, 0, 0, None, {}
 
-    relay_bonus  = 5 if any(v >= 2 for v in top4_by_stroke.values()) else 0
-    avg_pts      = sum(event_pts) / len(event_pts)
+    relay_bonus   = 5 if any(v >= 2 for v in top4_by_stroke.values()) else 0
+    avg_pts       = sum(event_pts) / len(event_pts)
     score_sportif = min(int(avg_pts / 25 * 50) + relay_bonus + departing_bonus, 50)
 
-    return score_sportif, event_scores, relay_bonus, departing_bonus, rang_estime
+    # Classement WA global dans l'équipe
+    athlete_total_wa = sum(calc_wa_points(ev, gender, t) for ev, t in athlete_times.items())
+
+    swimmer_wa_totals: dict = {}
+    for ev, ev_data in team_ev_data.items():
+        for i, t in enumerate(ev_data['active']):
+            wa_p = calc_wa_points(ev, gender, t)
+            swimmer_wa_totals[i] = swimmer_wa_totals.get(i, 0) + wa_p
+
+    team_wa_sorted    = sorted(swimmer_wa_totals.values(), reverse=True)
+    rang_wa_global    = sum(1 for p in team_wa_sorted if p > athlete_total_wa) + 1
+    team_total_size   = len(team_wa_sorted)
+    percentile_global = round((1 - (rang_wa_global - 1) / max(team_total_size, 1)) * 100)
+
+    wa_summary = {
+        'athlete_total_wa':  athlete_total_wa,
+        'rang_wa_global':    rang_wa_global,
+        'team_total_size':   team_total_size,
+        'percentile_global': percentile_global,
+        'team_wa_sorted':    team_wa_sorted[:10],
+    }
+
+    return score_sportif, event_scores, relay_bonus, departing_bonus, rang_estime, wa_summary
 
 
 @router.get("/api/school/{team_id}")
@@ -225,9 +307,20 @@ async def compute_match(body: dict):
     lcm_times = {}
     for t in times_input:
         try:
-            event        = t["event"]
+            event    = t["event"]
+            basin    = t["basin"]
+            raw_time = float(t["time_seconds"])
+            if basin == "LCM":
+                lcm_time = raw_time
+            elif basin == "SCY":
+                factor   = FACTEURS_LCM_TO_SCY.get(event, 0.869)
+                lcm_time = raw_time / factor
+            elif basin == "SCM":
+                lcm_time = raw_time / 0.976
+            else:
+                continue
             usports_event = USPORTS_EVENT_MAP.get(event, event)
-            lcm_times[usports_event] = float(t["time_seconds"])
+            lcm_times[usports_event] = round(lcm_time, 2)
         except:
             pass
 
@@ -240,22 +333,21 @@ async def compute_match(body: dict):
     try:
         # ── NCAA : per-swimmer times ──────────────────────────────────────────
         if ncaa_divs and scy_times:
-            div_filter = ",".join(f"'{d}'" for d in ncaa_divs)
             event_list = list(scy_times.keys())
 
-            rows = await conn.fetch(f"""
+            rows = await conn.fetch("""
                 SELECT sw.team_swimcloud_id, t.name, t.division, t.state, t.city,
                        sw.swimcloud_id as swimmer_id, sw.is_departing,
                        s.event_code, MIN(s.time_seconds) as best_time
                 FROM sc_teams t
                 JOIN sc_swimmers sw ON sw.team_swimcloud_id = t.swimcloud_id
                 JOIN sc_times s ON s.swimmer_swimcloud_id = sw.swimcloud_id
-                WHERE t.division IN ({div_filter})
+                WHERE t.division = ANY($3::text[])
                 AND sw.gender = $1
                 AND s.event_code = ANY($2)
                 GROUP BY sw.team_swimcloud_id, t.name, t.division, t.state, t.city,
                          sw.swimcloud_id, sw.is_departing, s.event_code
-            """, gender, event_list)
+            """, gender, event_list, ncaa_divs)
 
             team_meta    = {}
             team_ev_data = {}
@@ -274,7 +366,9 @@ async def compute_match(body: dict):
                 team_ev_data[tid][ev][key].append(row['best_time'])
 
             for tid, meta in team_meta.items():
-                sp, ev_scores, rb, db, rang = calc_sport_score(scy_times, team_ev_data[tid])
+                sp, ev_scores, rb, db, rang, wa_summary = calc_sport_score(
+                    scy_times, team_ev_data[tid], gender
+                )
                 if sp is None:
                     continue
                 scores[tid] = {
@@ -286,6 +380,7 @@ async def compute_match(body: dict):
                     'academic_grade': 'N/A',
                     'rang_estime': rang, 'relay_bonus': rb, 'departing_bonus': db,
                     'events': ev_scores, 'academic': None, 'team_times': {},
+                    'wa_summary': wa_summary,
                 }
 
         # ── USports : per-swimmer times (LCM) ────────────────────────────────
@@ -324,7 +419,9 @@ async def compute_match(body: dict):
                 team_ev_data_ca[tid][ev][key].append(row['best_time'])
 
             for tid, meta in team_meta_ca.items():
-                sp, ev_scores, rb, db, rang = calc_sport_score(lcm_times, team_ev_data_ca[tid])
+                sp, ev_scores, rb, db, rang, wa_summary = calc_sport_score(
+                    lcm_times, team_ev_data_ca[tid], gender
+                )
                 if sp is None:
                     continue
                 scores[tid] = {
@@ -336,6 +433,7 @@ async def compute_match(body: dict):
                     'academic_grade': 'N/A',
                     'rang_estime': rang, 'relay_bonus': rb, 'departing_bonus': db,
                     'events': ev_scores, 'academic': None, 'team_times': {},
+                    'wa_summary': wa_summary,
                 }
 
         # ── Academic + Geo scoring ────────────────────────────────────────────
@@ -418,7 +516,9 @@ async def compute_match(body: dict):
                 # Géographie (15 pts) — toutes les équipes
                 team_state = data.get('state') or ''
                 score_geo  = 0
-                if states_wanted:
+                if data.get('country') == 'CA':
+                    score_geo = 15 if include_usports else 0
+                elif states_wanted:
                     if team_state in states_wanted:
                         score_geo = 15
                 elif regions_wanted:
