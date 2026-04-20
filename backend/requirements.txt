@@ -4,3 +4,4 @@ asyncpg
 python-dotenv
 aiohttp
 cloudinary
+python-multipart
