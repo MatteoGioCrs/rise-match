@@ -252,9 +252,9 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
           )}
           
           {/* Nav links */}
-          <Link href="/a-propos"          style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...INTER }}>À propos</Link>
-          <Link href="/comment-ca-marche" style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...INTER }}>Comment ça marche</Link>
-          <Link href="/le-sport-aux-usa"  style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...INTER }}>Le Sport aux USA</Link>
+          <Link href="/a-propos"          style={{ color: C.slate, fontSize: 12, textDecoration: "none", fontFamily: "Inter, sans-serif" }}>À propos</Link>
+          <Link href="/comment-ca-marche" style={{ color: C.slate, fontSize: 12, textDecoration: "none", fontFamily: "Inter, sans-serif" }}>Comment ça marche</Link>
+          <Link href="/le-sport-aux-usa"  style={{ color: C.slate, fontSize: 12, textDecoration: "none", fontFamily: "Inter, sans-serif" }}>Le Sport aux USA</Link>
 
           {/* Bouton Secondaire : L'Agence (Outline) */}
           <a
