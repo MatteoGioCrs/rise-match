@@ -62,6 +62,7 @@ export default function AthleteFilePage() {
   const [selectedMatches, setSelectedMatches] = useState<number[]>([])
   const [publishedCount,  setPublishedCount]  = useState(0)
   const [publishLoading,  setPublishLoading]  = useState(false)
+  const [checklist,       setChecklist]       = useState<any>(null)
 
   useEffect(() => {
     const t = localStorage.getItem("rise_admin_token")
@@ -83,10 +84,29 @@ export default function AthleteFilePage() {
       if (s.published_matches && s.published_matches.length > 0) {
         setMatches(s.published_matches)
       }
+      if (s.user_id) {
+        const clRes = await fetch(`${API}/api/admin/checklist/${s.user_id}`, {
+          headers: { "x-admin-token": t },
+        })
+        if (clRes.ok) setChecklist(await clRes.json())
+      }
     } catch {
       router.push("/admin")
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function toggleStep(stepId: string, currentDone: boolean) {
+    if (!token || !session?.user_id) return
+    const res = await fetch(`${API}/api/admin/checklist/${session.user_id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-token": token },
+      body: JSON.stringify({ step_id: stepId, done: !currentDone }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setChecklist((prev: any) => ({ ...prev, ...data }))
     }
   }
 
@@ -272,7 +292,92 @@ export default function AthleteFilePage() {
         </div>
       </div>
 
-      {/* Section 3 — Messagerie */}
+      {/* Section 3 — Checklist parcours */}
+      {session.user_id && checklist ? (
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, letterSpacing: 2, margin: 0 }}>PARCOURS NCAA</h2>
+              <span style={{ fontFamily: "monospace", fontSize: 12, color: C.slate }}>
+                {checklist.done}/{checklist.total} étapes · {checklist.progress_pct}%
+              </span>
+            </div>
+            {checklist.updated_at && (
+              <span style={{ fontSize: 11, color: C.slate, fontStyle: "italic" }}>
+                Modifié le {new Date(checklist.updated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, marginBottom: 20, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", width: `${checklist.progress_pct}%`,
+              background: `linear-gradient(90deg, ${C.maize}, #E6B800)`,
+              borderRadius: 3, transition: "width 0.4s ease",
+            }} />
+          </div>
+
+          {/* Steps grouped by category */}
+          {(Object.entries(
+            (checklist.steps as any[]).reduce((acc: Record<string, any[]>, step: any) => {
+              if (!acc[step.category]) acc[step.category] = []
+              acc[step.category].push(step)
+              return acc
+            }, {})
+          ) as [string, any[]][]).map(([cat, catSteps]) => (
+            <div key={cat} style={{ marginBottom: 12 }}>
+              <p style={{ ...BEBAS, color: C.slate, fontSize: 11, letterSpacing: 2, margin: "0 0 6px" }}>
+                {checklist.category_labels[cat] || cat}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {catSteps.map((step: any) => (
+                  <div
+                    key={step.id}
+                    onClick={() => toggleStep(step.id, step.done)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "7px 10px", borderRadius: 6, cursor: "pointer",
+                      background: step.done ? "rgba(46,204,113,0.06)" : "rgba(255,255,255,0.02)",
+                      border: "1px solid transparent",
+                      transition: "background 0.15s, border-color 0.15s",
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,203,5,0.2)" }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "transparent" }}
+                  >
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: step.done ? "#2ECC71" : "transparent",
+                      border: `2px solid ${step.done ? "#2ECC71" : "rgba(255,255,255,0.2)"}`,
+                      fontSize: 10, color: "#fff",
+                      transition: "background 0.15s, border-color 0.15s",
+                    }}>
+                      {step.done && "✓"}
+                    </div>
+                    <span style={{
+                      fontSize: 13, fontFamily: "Inter, sans-serif",
+                      color: step.done ? "#B8C8D8" : C.slate,
+                      textDecoration: step.done ? "line-through" : "none",
+                    }}>
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : session.user_id && !checklist ? null : (
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+          <p style={{ color: C.slate, fontSize: 13, margin: 0, fontStyle: "italic" }}>
+            ✅ Checklist indisponible — session non liée à un compte athlète.
+          </p>
+        </div>
+      )}
+
+      {/* Section 4 — Messagerie */}
       {session.user_id ? (
         <div style={{ marginBottom: 24 }}>
           <ChatWidget
@@ -290,7 +395,7 @@ export default function AthleteFilePage() {
         </div>
       )}
 
-      {/* Section 4 — Documents */}
+      {/* Section 5 — Documents */}
       {session.user_id ? (
         <div style={{ marginBottom: 24 }}>
           <DocumentsSection
@@ -307,7 +412,7 @@ export default function AthleteFilePage() {
         </div>
       )}
 
-      {/* Section 5 — Matchs */}
+      {/* Section 6 — Matchs */}
       <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24 }}>
 
         {/* Section header */}

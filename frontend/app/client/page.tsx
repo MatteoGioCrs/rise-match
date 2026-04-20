@@ -167,6 +167,7 @@ function ClientPortalInner() {
   const [sessions, setSessions]   = useState<any[]>([])
   const [userToken, setUserToken] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [checklist, setChecklist] = useState<any>(null)
 
   useEffect(() => {
     const token = localStorage.getItem("rise_user_token")
@@ -176,6 +177,15 @@ function ClientPortalInner() {
       setAppState("auth")
     }
   }, [])
+
+  useEffect(() => {
+    if (appState === "dashboard" && userToken) {
+      fetch(`${API}/api/checklist`, { headers: { Authorization: `Bearer ${userToken}` } })
+        .then(r => r.json())
+        .then(setChecklist)
+        .catch(() => {})
+    }
+  }, [appState, userToken])
 
   async function loadUser(token: string) {
     try {
@@ -304,6 +314,77 @@ function ClientPortalInner() {
             <span style={{ backgroundColor: "rgba(46,204,113,0.1)", color: C.green, padding: "4px 10px", borderRadius: 4, ...BEBAS, fontSize: 16, letterSpacing: 1 }}>ACTIF</span>
           </div>
         </div>
+
+        {/* Section MON PARCOURS */}
+        {checklist && (
+          <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px", marginBottom: 32 }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: 0 }}>
+                MON PARCOURS — {checklist.done}/{checklist.total} ÉTAPES
+              </p>
+              <span style={{ ...MONO, color: C.maize, fontSize: 14, fontWeight: 700 }}>
+                {checklist.progress_pct}%
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, marginBottom: 20, overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${checklist.progress_pct}%`,
+                background: `linear-gradient(90deg, ${C.maize}, ${C.maizeDark})`,
+                borderRadius: 3,
+                transition: "width 0.5s ease",
+              }} />
+            </div>
+
+            {/* Steps grouped by category */}
+            {(Object.entries(
+              (checklist.steps as any[]).reduce((acc: Record<string, any[]>, step: any) => {
+                if (!acc[step.category]) acc[step.category] = []
+                acc[step.category].push(step)
+                return acc
+              }, {})
+            ) as [string, any[]][]).map(([cat, catSteps]) => (
+              <div key={cat} style={{ marginBottom: 12 }}>
+                <p style={{ ...BEBAS, color: C.slate, fontSize: 11, letterSpacing: 2, margin: "0 0 6px" }}>
+                  {checklist.category_labels[cat] || cat}
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {catSteps.map((step: any) => (
+                    <div key={step.id} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "6px 8px", borderRadius: 6,
+                      background: step.done ? "rgba(46,204,113,0.06)" : "rgba(255,255,255,0.02)",
+                    }}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: step.done ? C.green : "transparent",
+                        border: `2px solid ${step.done ? C.green : "rgba(255,255,255,0.2)"}`,
+                        fontSize: 10, color: C.white,
+                      }}>
+                        {step.done && "✓"}
+                      </div>
+                      <span style={{
+                        fontSize: 13, ...INTER,
+                        color: step.done ? C.slateLight : C.slate,
+                        textDecoration: step.done ? "line-through" : "none",
+                      }}>
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <p style={{ color: C.slate, fontSize: 11, margin: "12px 0 0", fontStyle: "italic", ...INTER }}>
+              Les étapes sont validées par l'équipe RISE Athletics
+            </p>
+          </div>
+        )}
 
         {sessions.length === 0 ? (
           <div style={{ backgroundColor: C.navyLight, borderRadius: 12, padding: 48, textAlign: "center", border: `1px solid rgba(255,255,255,0.05)` }}>

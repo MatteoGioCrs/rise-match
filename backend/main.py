@@ -5,6 +5,7 @@ from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.messages import router as messages_router
 from routers.documents import router as documents_router
+from routers.checklist import router as checklist_router
 
 app = FastAPI()
 
@@ -24,6 +25,7 @@ app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(messages_router)
 app.include_router(documents_router)
+app.include_router(checklist_router)
 
 
 @app.on_event("startup")
@@ -89,6 +91,15 @@ async def create_tables():
             is_read     BOOLEAN DEFAULT FALSE,
             created_at  TIMESTAMP DEFAULT NOW(),
             session_id  INTEGER REFERENCES search_sessions(id) ON DELETE SET NULL
+        )
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS checklists (
+            id         SERIAL PRIMARY KEY,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            steps      JSONB NOT NULL DEFAULT '[]',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
         )
     """)
     await conn.close()
