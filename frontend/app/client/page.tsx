@@ -296,7 +296,13 @@ function ClientPortalInner() {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 16 }}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => router.push("/client/profile")}
+            style={{ background: "transparent", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "8px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, ...INTER }}
+          >
+            👤 Mon profil
+          </button>
           <button onClick={handleLogout} style={{ backgroundColor: "rgba(231,76,60,0.1)", border: `1px solid ${C.red}`, color: C.red, padding: "8px 16px", borderRadius: 6, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}>
             DÉCONNEXION
           </button>

@@ -251,9 +251,14 @@ function Navbar({ onHome, showNewSearch, onNewSearch }: {
             </button>
           )}
           
+          {/* Nav links */}
+          <Link href="/a-propos"          style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...INTER }}>À propos</Link>
+          <Link href="/comment-ca-marche" style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...INTER }}>Comment ça marche</Link>
+          <Link href="/le-sport-aux-usa"  style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...INTER }}>Le Sport aux USA</Link>
+
           {/* Bouton Secondaire : L'Agence (Outline) */}
-          <a 
-            href="https://riseathletics.fr" 
+          <a
+            href="https://riseathletics.fr"
             target="_blank" 
             rel="noopener noreferrer" 
             style={{ 

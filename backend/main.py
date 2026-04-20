@@ -6,6 +6,7 @@ from routers.auth import router as auth_router
 from routers.messages import router as messages_router
 from routers.documents import router as documents_router
 from routers.checklist import router as checklist_router
+from routers.profile import router as profile_router
 
 app = FastAPI()
 
@@ -26,6 +27,7 @@ app.include_router(auth_router)
 app.include_router(messages_router)
 app.include_router(documents_router)
 app.include_router(checklist_router)
+app.include_router(profile_router)
 
 
 @app.on_event("startup")
@@ -91,6 +93,25 @@ async def create_tables():
             is_read     BOOLEAN DEFAULT FALSE,
             created_at  TIMESTAMP DEFAULT NOW(),
             session_id  INTEGER REFERENCES search_sessions(id) ON DELETE SET NULL
+        )
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS athlete_profiles (
+            id             SERIAL PRIMARY KEY,
+            user_id        INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            birth_year     INTEGER,
+            departure_year INTEGER,
+            current_level  TEXT,
+            english_level  TEXT,
+            toefl_score    INTEGER,
+            club_name      TEXT,
+            coach_name     TEXT,
+            coach_email    TEXT,
+            objective      TEXT,
+            budget_range   TEXT,
+            notes_perso    TEXT,
+            created_at     TIMESTAMP DEFAULT NOW(),
+            updated_at     TIMESTAMP DEFAULT NOW()
         )
     """)
     await conn.execute("""

@@ -54,6 +54,7 @@ export default function AdminPage() {
   const [selectedUser,         setSelectedUser]         = useState<any | null>(null)
   const [userSessions,         setUserSessions]         = useState<any[]>([])
   const [userSessionsLoading,  setUserSessionsLoading]  = useState(false)
+  const [unreadByUser,         setUnreadByUser]         = useState<Record<number, number>>({})
 
   useEffect(() => {
     const stored = localStorage.getItem("rise_admin_token")
@@ -113,12 +114,16 @@ export default function AdminPage() {
   async function fetchUsers() {
     try {
       const token = localStorage.getItem("rise_admin_token") ?? ""
-      const res = await fetch(`${API}/api/admin/users`, {
-        headers: { "x-admin-token": token },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setUsers(data.users ?? [])
+      const [usersRes, unreadRes] = await Promise.all([
+        fetch(`${API}/api/admin/users`,            { headers: { "x-admin-token": token } }),
+        fetch(`${API}/api/admin/messages/unread`,  { headers: { "x-admin-token": token } }),
+      ])
+      if (usersRes.ok) setUsers((await usersRes.json()).users ?? [])
+      if (unreadRes.ok) {
+        const data = await unreadRes.json()
+        const map: Record<number, number> = {}
+        for (const item of (data.unread ?? [])) map[item.user_id] = item.unread_count
+        setUnreadByUser(map)
       }
     } catch { /* ignore */ }
   }
@@ -224,6 +229,12 @@ export default function AdminPage() {
           <span style={{ fontSize: 13, color: C.slate }}>
             {sessions.length} recherche{sessions.length !== 1 ? "s" : ""}
           </span>
+          <a
+            href="/admin/stats"
+            style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...BEBAS, letterSpacing: 1, border: "1px solid rgba(255,255,255,0.12)", padding: "6px 12px", borderRadius: 6 }}
+          >
+            📊 ANALYTICS
+          </a>
           <button
             onClick={() => { setOffset(0); fetchSessions(0); fetchUsers() }}
             style={{ background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "8px 14px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontFamily: "Inter" }}
@@ -467,6 +478,11 @@ export default function AdminPage() {
                   <span style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 15, color: "#fff" }}>
                     {user.first_name || ""} {user.last_name || ""}
                   </span>
+                  {unreadByUser[user.id] > 0 && (
+                    <span style={{ background: "#e74c3c", color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, fontFamily: "Inter", flexShrink: 0 }}>
+                      {unreadByUser[user.id]}
+                    </span>
+                  )}
                   <span style={{
                     fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
                     background: user.is_active ? "rgba(46,204,113,0.15)" : "rgba(255,255,255,0.08)",

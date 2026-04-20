@@ -272,6 +272,73 @@ async def get_user_sessions(user_id: int, x_admin_token: str = Header(None)):
         await conn.close()
 
 
+@router.get("/api/admin/stats")
+async def get_stats(x_admin_token: str = Header(None)):
+    await verify_admin(x_admin_token)
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        weekly = await conn.fetch("""
+            SELECT DATE_TRUNC('week', created_at) as week, COUNT(*) as searches
+            FROM search_sessions
+            WHERE created_at > NOW() - INTERVAL '8 weeks'
+            GROUP BY week ORDER BY week ASC
+        """)
+        div_rows = await conn.fetch("""
+            SELECT unnest(divisions) as division, COUNT(*) as count
+            FROM search_sessions
+            GROUP BY division ORDER BY count DESC
+        """)
+        state_rows = await conn.fetch("""
+            SELECT admin_status, COUNT(*) as count
+            FROM search_sessions
+            GROUP BY admin_status ORDER BY count DESC
+        """)
+        total_sessions   = await conn.fetchval("SELECT COUNT(*) FROM search_sessions")
+        total_registered = await conn.fetchval("SELECT COUNT(*) FROM users")
+        total_active     = await conn.fetchval("SELECT COUNT(*) FROM users WHERE is_active = true")
+        total_signed     = await conn.fetchval("SELECT COUNT(*) FROM search_sessions WHERE admin_status = 'signé'")
+        total_published  = await conn.fetchval("SELECT COUNT(*) FROM search_sessions WHERE published_matches IS NOT NULL")
+        gender_rows = await conn.fetch("""
+            SELECT gender, COUNT(*) as count
+            FROM search_sessions WHERE gender IS NOT NULL
+            GROUP BY gender
+        """)
+        weekly_users = await conn.fetch("""
+            SELECT DATE_TRUNC('week', created_at) as week, COUNT(*) as signups
+            FROM users
+            WHERE created_at > NOW() - INTERVAL '8 weeks'
+            GROUP BY week ORDER BY week ASC
+        """)
+        top_schools = await conn.fetch("""
+            SELECT top_match, COUNT(*) as count
+            FROM search_sessions WHERE top_match IS NOT NULL
+            GROUP BY top_match ORDER BY count DESC LIMIT 10
+        """)
+
+        def fmt(dt):
+            return dt.strftime('%d/%m') if dt else None
+
+        return {
+            "overview": {
+                "total_sessions":   total_sessions,
+                "total_registered": total_registered,
+                "total_active":     total_active,
+                "total_signed":     total_signed,
+                "total_published":  total_published,
+                "conversion_rate":  round(total_registered / total_sessions * 100, 1) if total_sessions else 0,
+                "activation_rate":  round(total_active / total_registered * 100, 1) if total_registered else 0,
+            },
+            "weekly_searches": [{"week": fmt(r["week"]), "searches": r["searches"]} for r in weekly],
+            "weekly_signups":  [{"week": fmt(r["week"]), "signups":  r["signups"]}  for r in weekly_users],
+            "divisions":   [{"division": r["division"], "count": r["count"]} for r in div_rows],
+            "statuses":    [{"status": r["admin_status"] or "non défini", "count": r["count"]} for r in state_rows],
+            "genders":     [{"gender": r["gender"], "count": r["count"]} for r in gender_rows],
+            "top_schools": [{"school": r["top_match"], "count": r["count"]} for r in top_schools],
+        }
+    finally:
+        await conn.close()
+
+
 @router.patch("/api/admin/users/{user_id}")
 async def update_user(user_id: int, body: dict, x_admin_token: str = Header(None)):
     """Met à jour plan, is_active, ou lie une session supplémentaire."""

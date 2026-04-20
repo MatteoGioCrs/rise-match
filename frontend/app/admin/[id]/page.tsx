@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import ChatWidget from "../../components/ChatWidget"
-import DocumentsSection from "../../components/DocumentsSection"
 
 const API  = "https://rise-match-production.up.railway.app"
 const BEBAS = { fontFamily: "'Bebas Neue', sans-serif" } as const
@@ -63,6 +62,8 @@ export default function AthleteFilePage() {
   const [publishedCount,  setPublishedCount]  = useState(0)
   const [publishLoading,  setPublishLoading]  = useState(false)
   const [checklist,       setChecklist]       = useState<any>(null)
+  const [athleteProfile,  setAthleteProfile]  = useState<any>(null)
+  const [documents,       setDocuments]       = useState<any[]>([])
 
   useEffect(() => {
     const t = localStorage.getItem("rise_admin_token")
@@ -85,10 +86,14 @@ export default function AthleteFilePage() {
         setMatches(s.published_matches)
       }
       if (s.user_id) {
-        const clRes = await fetch(`${API}/api/admin/checklist/${s.user_id}`, {
-          headers: { "x-admin-token": t },
-        })
-        if (clRes.ok) setChecklist(await clRes.json())
+        const [clRes, profRes, docsRes] = await Promise.all([
+          fetch(`${API}/api/admin/checklist/${s.user_id}`,  { headers: { "x-admin-token": t } }),
+          fetch(`${API}/api/admin/profile/${s.user_id}`,    { headers: { "x-admin-token": t } }),
+          fetch(`${API}/api/admin/documents/${s.user_id}`,  { headers: { "x-admin-token": t } }),
+        ])
+        if (clRes.ok)   setChecklist(await clRes.json())
+        if (profRes.ok) setAthleteProfile(await profRes.json())
+        if (docsRes.ok) setDocuments((await docsRes.json()).documents ?? [])
       }
     } catch {
       router.push("/admin")
@@ -292,17 +297,46 @@ export default function AthleteFilePage() {
         </div>
       </div>
 
-      {/* Section 3 — Checklist parcours */}
-      {session.user_id && checklist ? (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
-          {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, letterSpacing: 2, margin: 0 }}>PARCOURS NCAA</h2>
-              <span style={{ fontFamily: "monospace", fontSize: 12, color: C.slate }}>
-                {checklist.done}/{checklist.total} étapes · {checklist.progress_pct}%
-              </span>
+      {/* Section 3 — Profil athlète */}
+      {athleteProfile && Object.keys(athleteProfile).length > 1 && (
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+          <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, letterSpacing: 2, margin: "0 0 16px" }}>PROFIL ATHLÈTE</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }}>
+            {[
+              { label: "Club",            value: athleteProfile.club_name },
+              { label: "Entraîneur",      value: athleteProfile.coach_name },
+              { label: "Email coach",     value: athleteProfile.coach_email },
+              { label: "Niveau scolaire", value: athleteProfile.current_level },
+              { label: "Anglais",         value: athleteProfile.english_level },
+              { label: "Score TOEFL",     value: athleteProfile.toefl_score },
+              { label: "Départ",          value: athleteProfile.departure_year },
+              { label: "Objectif",        value: athleteProfile.objective },
+              { label: "Budget",          value: athleteProfile.budget_range },
+            ]
+              .filter(row => row.value != null && row.value !== "")
+              .map(row => (
+                <div key={row.label} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: 8 }}>
+                  <div style={{ fontSize: 10, color: C.slate, fontFamily: "Bebas Neue, sans-serif", letterSpacing: 2, marginBottom: 2 }}>{row.label}</div>
+                  <div style={{ fontSize: 13, color: "#fff", fontFamily: "Inter, sans-serif" }}>{String(row.value)}</div>
+                </div>
+              ))}
+          </div>
+          {athleteProfile.notes_perso && (
+            <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8, borderLeft: `3px solid rgba(255,203,5,0.3)` }}>
+              <div style={{ fontSize: 10, color: C.slate, fontFamily: "Bebas Neue, sans-serif", letterSpacing: 2, marginBottom: 4 }}>NOTES PERSONNELLES</div>
+              <p style={{ fontSize: 13, color: C.slate, margin: 0, fontFamily: "Inter, sans-serif", lineHeight: 1.5 }}>{athleteProfile.notes_perso}</p>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Section 4 — Checklist NCAA */}
+      {checklist && (
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: 0 }}>
+              CHECKLIST — {checklist.done}/{checklist.total} ({checklist.progress_pct}%)
+            </p>
             {checklist.updated_at && (
               <span style={{ fontSize: 11, color: C.slate, fontStyle: "italic" }}>
                 Modifié le {new Date(checklist.updated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
@@ -310,76 +344,35 @@ export default function AthleteFilePage() {
             )}
           </div>
 
-          {/* Progress bar */}
-          <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, marginBottom: 20, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", width: `${checklist.progress_pct}%`,
-              background: `linear-gradient(90deg, ${C.maize}, #E6B800)`,
-              borderRadius: 3, transition: "width 0.4s ease",
-            }} />
+          <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, marginBottom: 16, overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 2, width: `${checklist.progress_pct}%`, background: `linear-gradient(90deg, ${C.maize}, #E6B800)`, transition: "width 0.3s" }} />
           </div>
 
-          {/* Steps grouped by category */}
-          {(Object.entries(
-            (checklist.steps as any[]).reduce((acc: Record<string, any[]>, step: any) => {
-              if (!acc[step.category]) acc[step.category] = []
-              acc[step.category].push(step)
-              return acc
-            }, {})
-          ) as [string, any[]][]).map(([cat, catSteps]) => (
-            <div key={cat} style={{ marginBottom: 12 }}>
-              <p style={{ ...BEBAS, color: C.slate, fontSize: 11, letterSpacing: 2, margin: "0 0 6px" }}>
-                {checklist.category_labels[cat] || cat}
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                {catSteps.map((step: any) => (
-                  <div
-                    key={step.id}
-                    onClick={() => toggleStep(step.id, step.done)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "7px 10px", borderRadius: 6, cursor: "pointer",
-                      background: step.done ? "rgba(46,204,113,0.06)" : "rgba(255,255,255,0.02)",
-                      border: "1px solid transparent",
-                      transition: "background 0.15s, border-color 0.15s",
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,203,5,0.2)" }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "transparent" }}
-                  >
-                    <div style={{
-                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: step.done ? "#2ECC71" : "transparent",
-                      border: `2px solid ${step.done ? "#2ECC71" : "rgba(255,255,255,0.2)"}`,
-                      fontSize: 10, color: "#fff",
-                      transition: "background 0.15s, border-color 0.15s",
-                    }}>
-                      {step.done && "✓"}
-                    </div>
-                    <span style={{
-                      fontSize: 13, fontFamily: "Inter, sans-serif",
-                      color: step.done ? "#B8C8D8" : C.slate,
-                      textDecoration: step.done ? "line-through" : "none",
-                    }}>
-                      {step.label}
-                    </span>
-                  </div>
-                ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {(checklist.steps as any[] || []).map((step: any) => (
+              <div
+                key={step.id}
+                onClick={() => toggleStep(step.id, step.done)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, cursor: "pointer", background: step.done ? "rgba(46,204,113,0.06)" : "rgba(255,255,255,0.02)", transition: "background 0.15s" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = step.done ? "rgba(46,204,113,0.1)" : "rgba(255,203,5,0.04)" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = step.done ? "rgba(46,204,113,0.06)" : "rgba(255,255,255,0.02)" }}
+              >
+                <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: step.done ? "#2ECC71" : "transparent", border: `2px solid ${step.done ? "#2ECC71" : "rgba(255,255,255,0.25)"}`, fontSize: 11, color: "#fff", transition: "all 0.2s" }}>
+                  {step.done && "✓"}
+                </div>
+                <span style={{ fontSize: 13, fontFamily: "Inter, sans-serif", color: step.done ? "#B8C8D8" : C.slate, textDecoration: step.done ? "line-through" : "none" }}>
+                  {step.label}
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : session.user_id && !checklist ? null : (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
-          <p style={{ color: C.slate, fontSize: 13, margin: 0, fontStyle: "italic" }}>
-            ✅ Checklist indisponible — session non liée à un compte athlète.
-          </p>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Section 4 — Messagerie */}
+      {/* Section 5 — Messagerie */}
       {session.user_id ? (
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+          <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: "0 0 16px" }}>MESSAGERIE</p>
           <ChatWidget
             mode="admin"
             userId={session.user_id}
@@ -395,14 +388,68 @@ export default function AthleteFilePage() {
         </div>
       )}
 
-      {/* Section 5 — Documents */}
+      {/* Section 6 — Documents */}
       {session.user_id ? (
-        <div style={{ marginBottom: 24 }}>
-          <DocumentsSection
-            mode="admin"
-            userId={session.user_id}
-            adminToken={token ?? undefined}
-          />
+        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: 0 }}>
+              DOCUMENTS ({documents.length})
+            </p>
+            <label style={{ background: "transparent", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "5px 12px", borderRadius: 6, cursor: "pointer", ...BEBAS, fontSize: 12, letterSpacing: 1 }}>
+              + AJOUTER UN FICHIER
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                style={{ display: "none" }}
+                onChange={async e => {
+                  const file = e.target.files?.[0]
+                  if (!file || !token) return
+                  const formData = new FormData()
+                  formData.append("file", file)
+                  formData.append("label", "Document RISE")
+                  const res = await fetch(`${API}/api/admin/documents/${session.user_id}/upload`, {
+                    method: "POST",
+                    headers: { "x-admin-token": token },
+                    body: formData,
+                  })
+                  if (res.ok) {
+                    const newDoc = await res.json()
+                    setDocuments(prev => [{ ...newDoc, uploaded_by: "admin", created_at: new Date().toISOString() }, ...prev])
+                  }
+                  e.target.value = ""
+                }}
+              />
+            </label>
+          </div>
+
+          {documents.length === 0 ? (
+            <p style={{ color: C.slate, fontSize: 13, fontFamily: "Inter, sans-serif", fontStyle: "italic", margin: 0 }}>
+              Aucun document pour ce dossier.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {documents.map((doc: any) => (
+                <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>{doc.file_type === "pdf" ? "📄" : "🖼️"}</span>
+                    <div>
+                      <p style={{ color: "#fff", fontSize: 13, margin: "0 0 2px", fontFamily: "Inter, sans-serif", fontWeight: 500 }}>
+                        {doc.label || doc.file_name}
+                      </p>
+                      <p style={{ color: C.slate, fontSize: 11, margin: 0, fontFamily: "Space Mono, monospace" }}>
+                        {doc.uploaded_by === "admin" ? "🏢 RISE" : "👤 Athlète"}
+                        {" · "}
+                        {new Date(doc.created_at).toLocaleDateString("fr-FR")}
+                      </p>
+                    </div>
+                  </div>
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: C.maize, fontSize: 12, ...BEBAS, letterSpacing: 1, textDecoration: "none" }}>
+                    OUVRIR →
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
@@ -412,7 +459,7 @@ export default function AthleteFilePage() {
         </div>
       )}
 
-      {/* Section 6 — Matchs */}
+      {/* Section 7 — Matchs */}
       <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24 }}>
 
         {/* Section header */}
