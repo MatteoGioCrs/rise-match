@@ -121,6 +121,10 @@ async def get_session_detail(session_id: int, x_admin_token: str = Header(None))
         if not row:
             raise HTTPException(status_code=404, detail="Session non trouvée")
         d = dict(row)
+        for field in ("times_input", "published_matches"):
+            if isinstance(d.get(field), str):
+                try:    d[field] = json.loads(d[field])
+                except: d[field] = None
         if d.get("created_at"):
             d["created_at"] = d["created_at"].isoformat()
         return {"session": d}

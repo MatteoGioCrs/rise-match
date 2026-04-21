@@ -82,9 +82,11 @@ export default function AthleteFilePage() {
       const s: Session = data.session
       setSession(s)
       setNotes(s.admin_notes ?? "")
-      if (s.published_matches && s.published_matches.length > 0) {
-        setMatches(s.published_matches)
-      }
+      const rawPm = s.published_matches
+      const parsedPm: Match[] = Array.isArray(rawPm) ? rawPm
+        : typeof rawPm === "string" ? (() => { try { return JSON.parse(rawPm) } catch { return [] } })()
+        : []
+      if (parsedPm.length > 0) setMatches(parsedPm)
       if (s.user_id) {
         const [clRes, profRes, docsRes] = await Promise.all([
           fetch(`${API}/api/admin/checklist/${s.user_id}`,  { headers: { "x-admin-token": t } }),
@@ -259,7 +261,7 @@ export default function AthleteFilePage() {
             </div>
           )}
 
-          {session.divisions && session.divisions.length > 0 && (
+          {Array.isArray(session.divisions) && session.divisions.length > 0 && (
             <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {session.divisions.map(d => (
                 <span key={d} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: C.slate }}>
