@@ -133,7 +133,8 @@ const ALUMNI = [
   { name: "Caeleb Dressel",      flag: "🇺🇸", school: "Florida",           div: "NCAA D1",  note: "7x champion olympique. Record du monde 100m papillon." },
   { name: "Beryl Gastaldello",   flag: "🇫🇷", school: "Texas A&M",         div: "NCAA D1",  note: "Multiple médaillée aux Championnats d'Europe et du Monde." },
   { name: "Emma Terebo",         flag: "🇫🇷", school: "Florida State",     div: "NCAA D1",  note: "Championne de France, All-American en 100 dos." },
-  { name: "Matteo Caruso",       flag: "🇫🇷", school: "Florida Tech",      div: "NAIA",     note: "Co-fondateur RISE.MATCH. Podiums nationaux NAIA en relais." },
+  { name: "Matteo Caruso",       flag: "🇫🇷", school: "Florida Tech",      div: "NCAA D2",  note: "Co-fondateur RISE.MATCH. Podiums nationaux NAIA en relais." },
+  { name: "Mats Baradat",        flag: "🇫🇷", school: "McGill University", div: "USport",   note: "Co-fondateur RISE.MATCH. Podiums nationaux USports en relais et individuels." },
 ]
 
 export default function LeSportAuxUSAPage() {
