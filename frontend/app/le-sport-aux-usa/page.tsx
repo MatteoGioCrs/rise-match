@@ -45,7 +45,7 @@ const DIVISIONS = [
     color: C.maize,
     bg: "rgba(255,203,5,0.08)",
     border: "rgba(255,203,5,0.25)",
-    icon: "🏆",
+    logo: "/NCAAD1Logo.svg",
     scholarships: "Bourses complètes",
     scholarshipColor: C.green,
     desc: "L'élite du sport universitaire américain. Niveau international, installations professionnelles, visibilité nationale. Les bourses peuvent couvrir 100% des frais.",
@@ -58,7 +58,7 @@ const DIVISIONS = [
     color: "#6fa3d8",
     bg: "rgba(111,163,216,0.08)",
     border: "rgba(111,163,216,0.25)",
-    icon: "⭐",
+    logo: "/NCAAD2Logo.png",
     scholarships: "Bourses partielles",
     scholarshipColor: "#6fa3d8",
     desc: "Très compétitif avec un meilleur équilibre sport/études. Bourses partielles disponibles. Idéal pour les nageurs de niveau national français.",
@@ -71,7 +71,7 @@ const DIVISIONS = [
     color: C.slate,
     bg: "rgba(138,155,176,0.06)",
     border: "rgba(138,155,176,0.15)",
-    icon: "🎓",
+    logo: "/NCAAD3Logo.svg",
     scholarships: "Aides méritoires uniquement",
     scholarshipColor: C.slate,
     desc: "Priorité aux études. Pas de bourses sportives mais des aides financières selon le mérite ou les besoins. Universités souvent prestigieuses académiquement.",
@@ -84,7 +84,7 @@ const DIVISIONS = [
     color: "#b39ddb",
     bg: "rgba(179,157,219,0.08)",
     border: "rgba(179,157,219,0.25)",
-    icon: "💎",
+    logo: "/NAIALogo.png",
     scholarships: "Bourses disponibles",
     scholarshipColor: "#b39ddb",
     desc: "Association indépendante souvent méconnue. Niveau comparable à D2 NCAA. Bourses très accessibles, moins de concurrence au recrutement.",
@@ -97,7 +97,7 @@ const DIVISIONS = [
     color: C.green,
     bg: "rgba(46,204,113,0.06)",
     border: "rgba(46,204,113,0.2)",
-    icon: "🚀",
+    logo: "/NJCAALogo.png",
     scholarships: "Bourses disponibles",
     scholarshipColor: C.green,
     desc: "Collèges de 2 ans, tremplin vers D1/D2. Excellent point d'entrée si le niveau académique ou sportif doit progresser. Accès plus facile.",
@@ -110,7 +110,7 @@ const DIVISIONS = [
     color: "#f87171",
     bg: "rgba(248,113,113,0.06)",
     border: "rgba(248,113,113,0.2)",
-    icon: "🇨🇦",
+    logo: "/USportLogo.png",
     scholarships: "Aides académiques",
     scholarshipColor: "#f87171",
     desc: "Le sport universitaire canadien. Bassin LCM, frais moins élevés qu'aux USA, bonne qualité académique. Option intéressante pour les nageurs de longue distance.",
@@ -166,9 +166,16 @@ export default function LeSportAuxUSAPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
             {DIVISIONS.map(d => (
               <div key={d.tag} style={{ background: d.bg, border: `1px solid ${d.border}`, borderRadius: 12, padding: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                  <span style={{ fontSize: 28 }}>{d.icon}</span>
-                  <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 2, color: d.color, background: `${d.border}`, padding: "2px 8px", borderRadius: 4 }}>{d.tag}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                  {/* Conteneur pour s'assurer que tous les logos ont la même taille maximale */}
+                  <div style={{ height: 36, display: "flex", alignItems: "center" }}>
+                    <img 
+                      src={d.logo} 
+                      alt={`Logo ${d.name}`} 
+                      style={{ maxHeight: "100%", maxWidth: 120, objectFit: "contain", filter: d.tag === "CA 🇨🇦" || d.tag === "NAIA" || d.tag === "JUCO" ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none" }} 
+                    />
+                  </div>
+                  <span style={{ ...BEBAS, fontSize: 11, letterSpacing: 2, color: d.color, background: `${d.border}`, padding: "2px 8px", borderRadius: 4, marginTop: 4 }}>{d.tag}</span>
                 </div>
                 <p style={{ ...BEBAS, fontSize: 16, color: C.white, margin: "0 0 4px", letterSpacing: 1 }}>{d.name}</p>
                 <p style={{ fontSize: 11, color: d.scholarshipColor, fontWeight: 600, margin: "0 0 10px", ...INTER }}>{d.scholarships}</p>
