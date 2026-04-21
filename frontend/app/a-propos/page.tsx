@@ -52,7 +52,7 @@ export default function AProposPage() {
             POUR DES ATHLÈTES
           </h1>
           <p style={{ color: C.slateLight, fontSize: 17, lineHeight: 1.8, maxWidth: 600, margin: 0 }}>
-            RISE.MATCH est né d'une frustration simple : trouver l'université américaine idéale
+            RISE.MATCH est né d'une frustration simple : trouver l'université américaine ou canadienne idéale
             prend des dizaines d'heures de recherche manuelle, d'emails sans réponse,
             et de décisions prises à l'aveugle.
           </p>
@@ -60,8 +60,12 @@ export default function AProposPage() {
 
         {/* Matteo */}
         <div style={{ background: C.navyLight, border: `1px solid rgba(255,203,5,0.15)`, borderRadius: 16, padding: 32, marginBottom: 32, display: "grid", gridTemplateColumns: "auto 1fr", gap: 32, alignItems: "start" }}>
-          <div style={{ width: 80, height: 80, borderRadius: "50%", background: `linear-gradient(135deg, ${C.maize}, ${C.navyMid})`, display: "flex", alignItems: "center", justifyContent: "center", ...BEBAS, fontSize: 28, color: C.navy, flexShrink: 0 }}>
-            MC
+          <div style={{ width: 90, height: 90, borderRadius: "50%", overflow: "hidden", border: `2px solid ${C.maize}`, flexShrink: 0 }}>
+            <img 
+              src="/Matteo_Caruso.jpg" 
+              alt="Matteo Caruso" 
+              style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+            />
           </div>
           <div>
             <p style={{ ...BEBAS, color: C.maize, fontSize: 11, letterSpacing: 3, margin: "0 0 4px" }}>CO-FONDATEUR</p>
@@ -85,17 +89,32 @@ export default function AProposPage() {
         </div>
 
         {/* Mats */}
-        <div style={{ background: C.navyLight, border: `1px solid rgba(255,203,5,0.15)`, borderRadius: 16, padding: 32, marginBottom: 48, display: "grid", gridTemplateColumns: "auto 1fr", gap: 32, alignItems: "start" }}>
-          <div style={{ width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg, #6fa3d8, #1E3A5F)", display: "flex", alignItems: "center", justifyContent: "center", ...BEBAS, fontSize: 28, color: C.white, flexShrink: 0 }}>
-            M
+        <div style={{ background: C.navyLight, border: `1px solid rgba(111,163,216,0.15)`, borderRadius: 16, padding: 32, marginBottom: 48, display: "grid", gridTemplateColumns: "auto 1fr", gap: 32, alignItems: "start" }}>
+          <div style={{ width: 90, height: 90, borderRadius: "50%", overflow: "hidden", border: `2px solid #6fa3d8`, flexShrink: 0 }}>
+            <img 
+              src="/Mats_Baradat_1.jpg" 
+              alt="Mats Baradat" 
+              style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+            />
           </div>
           <div>
-            <p style={{ ...BEBAS, color: C.maize, fontSize: 11, letterSpacing: 3, margin: "0 0 4px" }}>CO-FONDATEUR</p>
-            <h2 style={{ ...BEBAS, fontSize: 28, color: C.white, margin: "0 0 12px" }}>MATS</h2>
-            <p style={{ color: C.slateLight, fontSize: 14, lineHeight: 1.8, margin: 0 }}>
-              Co-fondateur de RISE.MATCH, Mats apporte son expertise dans l'accompagnement
-              des étudiants-athlètes et sa connaissance du système universitaire américain.
+            <p style={{ ...BEBAS, color: "#6fa3d8", fontSize: 11, letterSpacing: 3, margin: "0 0 4px" }}>CO-FONDATEUR</p>
+            <h2 style={{ ...BEBAS, fontSize: 28, color: C.white, margin: "0 0 12px" }}>MATS BARADAT</h2>
+            <p style={{ color: C.slateLight, fontSize: 14, lineHeight: 1.8, margin: "0 0 12px" }}>
+              Originaire de Hyères (France), Mats est un spécialiste de la nage libre et du papillon.
+              Il étudie l'économie et évolue sous les couleurs de l'Université McGill au Canada (U SPORTS).
             </p>
+            <p style={{ color: C.slateLight, fontSize: 14, lineHeight: 1.8, margin: 0 }}>
+              Il s'est rapidement imposé comme l'un des meilleurs nageurs universitaires canadiens, 
+              remportant les titres de "Nageur de l'année" et "Recrue de l'année" du RSEQ, avec plusieurs médailles
+              d'or aux championnats de conférence et des médailles d'argent au niveau national (U SPORTS). En 2024,
+              il a également officié en tant que sauveteur aux Jeux Olympiques de Paris.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+              {["🏊 Spécialiste Demi-fond", "🎓 McGill University", "🏆 RSEQ Swimmer of the Year", "🥈 U SPORTS National Silver"].map(tag => (
+                <span key={tag} style={{ background: "rgba(111,163,216,0.1)", color: "#6fa3d8", padding: "3px 10px", borderRadius: 20, fontSize: 11, ...BEBAS, letterSpacing: 1 }}>{tag}</span>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -103,18 +122,18 @@ export default function AProposPage() {
         <div style={{ marginBottom: 48 }}>
           <p style={{ ...BEBAS, color: C.maize, fontSize: 13, letterSpacing: 3, margin: "0 0 16px" }}>NOTRE MISSION</p>
           <h2 style={{ ...BEBAS, fontSize: 36, color: C.white, margin: "0 0 24px" }}>
-            RENDRE L'OPPORTUNITÉ AMÉRICAINE<br />ACCESSIBLE À TOUS
+            RENDRE L'OPPORTUNITÉ NORD-AMÉRICAINE<br />ACCESSIBLE À TOUS
           </h2>
           {[
             {
               icon: "🔬",
               title: "Data d'abord",
-              desc: "Notre algorithme analyse les temps réels de 16 000+ nageurs NCAA/NAIA pour calculer où tu te situerais vraiment dans chaque équipe. Pas d'estimation — de la data.",
+              desc: "Notre algorithme analyse les temps réels de 16 000+ nageurs universitaires pour calculer où tu te situerais vraiment dans chaque équipe. Pas d'estimation — de la data.",
             },
             {
               icon: "🤝",
               title: "Expertise humaine",
-              desc: "L'algorithme fait le tri. Nos consultants — anciens athlètes universitaires américains — font la sélection finale et t'accompagnent jusqu'à l'engagement.",
+              desc: "L'algorithme fait le tri. Nos consultants — athlètes universitaires en activité — font la sélection finale et t'accompagnent jusqu'à l'engagement.",
             },
             {
               icon: "💰",
