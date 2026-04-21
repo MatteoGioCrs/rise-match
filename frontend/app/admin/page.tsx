@@ -383,7 +383,7 @@ export default function AdminPage() {
                       </select>
                       {s.user_id ? (
                         <span style={{ fontSize: 11, background: "rgba(46,204,113,0.12)", color: "#2ECC71", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 10, padding: "2px 8px", fontFamily: "Inter", display: "flex", alignItems: "center", gap: 4 }}>
-                          👤 {s.user_email ?? `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() || "Compte lié"}
+                          👤 {s.user_email ?? (`${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() || "Compte lié")}
                           {unreadByUser[s.user_id] > 0 && (
                             <span style={{ background: "#E74C3C", color: "#fff", borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
                               {unreadByUser[s.user_id]}
