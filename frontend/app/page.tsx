@@ -587,6 +587,7 @@ export default function Page() {
   // ── navigation ──
   const [appState,  setAppState]  = useState<AppState>("landing")
   const [formMode,  setFormMode]  = useState<"simple" | "advanced">("simple")
+  const [formStep,  setFormStep]  = useState<1 | 2 | 3>(1)
 
   // ── form ──
   const [selectedAge,        setSelectedAge]        = useState<number>(17)
@@ -887,7 +888,7 @@ export default function Page() {
           <div style={{ marginTop: 24, marginBottom: 32 }}>
             <div style={{ display: "flex", width: "fit-content", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden" }}>
               {(["simple", "advanced"] as const).map(mode => (
-                <button key={mode} onClick={() => setFormMode(mode)} style={{
+                <button key={mode} onClick={() => { setFormMode(mode); setFormStep(1) }} style={{
                   ...BEBAS, fontSize: 15, letterSpacing: 1, padding: "10px 24px",
                   backgroundColor: formMode === mode ? C.maize : "transparent",
                   color: formMode === mode ? C.navy : C.slate,
@@ -903,6 +904,45 @@ export default function Page() {
                 : "Tous les filtres pour un matching précis"}
             </p>
           </div>
+
+          {/* ── Step indicator (advanced only) ── */}
+          {formMode === "advanced" && (
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 28 }}>
+              {(["MES CHRONOS", "MES CRITÈRES", "MES FILTRES"] as const).map((label, i) => {
+                const step = i + 1
+                const active = formStep === step
+                const done = formStep > step
+                return (
+                  <div key={step} style={{ display: "contents" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <div
+                        onClick={() => { if (done) setFormStep(step as 1 | 2 | 3) }}
+                        style={{
+                          width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          backgroundColor: (active || done) ? C.maize : "transparent",
+                          border: `2px solid ${(active || done) ? C.maize : "rgba(255,255,255,0.2)"}`,
+                          color: (active || done) ? C.navy : C.slate,
+                          ...BEBAS, fontSize: 13,
+                          cursor: done ? "pointer" : "default",
+                        }}
+                      >
+                        {done ? "✓" : step}
+                      </div>
+                      {!isMobile && (
+                        <span style={{ ...BEBAS, fontSize: 12, letterSpacing: 1, color: (active || done) ? C.white : C.slate }}>
+                          {label}
+                        </span>
+                      )}
+                    </div>
+                    {i < 2 && (
+                      <div style={{ flex: 1, height: 1, backgroundColor: done ? C.maize : "rgba(255,255,255,0.15)", margin: "0 12px", minWidth: 16 }} />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           <div style={{ backgroundColor: C.navyLight, borderRadius: 16, padding: isMobile ? "24px 18px" : "36px 32px", border: "1px solid rgba(255,203,5,0.15)" }}>
 
@@ -984,8 +1024,8 @@ export default function Page() {
               </p>
             </div>
 
-            {/* ADVANCED ONLY */}
-            {formMode === "advanced" && (
+            {/* ── STEP 2 : Divisions + Spécialité + Âge ── */}
+            {formMode === "advanced" && formStep === 2 && (
               <>
                 {/* Divisions */}
                 <div style={{ marginBottom: 28 }}>
@@ -1013,6 +1053,23 @@ export default function Page() {
                   </div>
                 </div>
 
+                {/* Âge */}
+                <div style={{ marginBottom: 28 }}>
+                  <label style={SL}>Âge de départ souhaité</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {[15, 16, 17, 18, 19, 20, 21].map(age => (
+                      <ToggleBtn key={age} active={selectedAge === age} onClick={() => setSelectedAge(age)}>
+                        {age === 21 ? "21+" : age}
+                      </ToggleBtn>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 3 : Localisation + Filtres ── */}
+            {formMode === "advanced" && formStep === 3 && (
+              <>
                 {/* Localisation */}
                 <div style={{ marginBottom: 28 }}>
                   <label style={SL}>Localisation souhaitée</label>
@@ -1033,18 +1090,6 @@ export default function Page() {
                       ))}
                     </div>
                   )}
-                </div>
-
-                {/* Âge */}
-                <div style={{ marginBottom: 28 }}>
-                  <label style={SL}>Âge de départ souhaité</label>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {[15, 16, 17, 18, 19, 20, 21].map(age => (
-                      <ToggleBtn key={age} active={selectedAge === age} onClick={() => setSelectedAge(age)}>
-                        {age === 21 ? "21+" : age}
-                      </ToggleBtn>
-                    ))}
-                  </div>
                 </div>
 
                 {/* Filtres optionnels */}
@@ -1080,15 +1125,38 @@ export default function Page() {
               </div>
             )}
 
-            <button
-              onClick={() => handleSubmit()}
-              disabled={!canSubmit}
-              style={{ width: "100%", padding: "16px 32px", borderRadius: 8, backgroundColor: canSubmit ? C.maize : C.navyMid, color: canSubmit ? C.navy : C.slate, ...BEBAS, fontSize: 20, letterSpacing: 1, border: "none", cursor: canSubmit ? "pointer" : "not-allowed", transition: "all 0.15s" }}
-              onMouseEnter={e => { if (canSubmit) { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "scale(1.01)" } }}
-              onMouseLeave={e => { if (canSubmit) e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
-            >
-              CALCULER MES MATCHS →
-            </button>
+            {/* ── Navigation ── */}
+            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+              {formMode === "advanced" && formStep > 1 && (
+                <button
+                  onClick={() => setFormStep(s => (s - 1) as 1 | 2 | 3)}
+                  style={{ padding: "14px 22px", borderRadius: 8, backgroundColor: "transparent", color: C.slate, border: "1px solid rgba(255,255,255,0.15)", ...BEBAS, fontSize: 16, letterSpacing: 1, cursor: "pointer", flexShrink: 0 }}
+                >
+                  ← RETOUR
+                </button>
+              )}
+              {formMode === "simple" || formStep === 3 ? (
+                <button
+                  onClick={() => handleSubmit()}
+                  disabled={!canSubmit}
+                  style={{ flex: 1, padding: "16px 32px", borderRadius: 8, backgroundColor: canSubmit ? C.maize : C.navyMid, color: canSubmit ? C.navy : C.slate, ...BEBAS, fontSize: 20, letterSpacing: 1, border: "none", cursor: canSubmit ? "pointer" : "not-allowed", transition: "all 0.15s" }}
+                  onMouseEnter={e => { if (canSubmit) { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "scale(1.01)" } }}
+                  onMouseLeave={e => { if (canSubmit) e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
+                >
+                  CALCULER MES MATCHS →
+                </button>
+              ) : (
+                <button
+                  onClick={() => setFormStep(s => (s + 1) as 1 | 2 | 3)}
+                  disabled={formStep === 1 && validEntries.length === 0}
+                  style={{ flex: 1, padding: "16px 32px", borderRadius: 8, backgroundColor: validEntries.length > 0 ? C.maize : C.navyMid, color: validEntries.length > 0 ? C.navy : C.slate, ...BEBAS, fontSize: 20, letterSpacing: 1, border: "none", cursor: validEntries.length === 0 && formStep === 1 ? "not-allowed" : "pointer", transition: "all 0.15s" }}
+                  onMouseEnter={e => { if (validEntries.length > 0) { e.currentTarget.style.backgroundColor = C.maizeDark; e.currentTarget.style.transform = "scale(1.01)" } }}
+                  onMouseLeave={e => { if (validEntries.length > 0) e.currentTarget.style.backgroundColor = C.maize; e.currentTarget.style.transform = "" }}
+                >
+                  SUIVANT →
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

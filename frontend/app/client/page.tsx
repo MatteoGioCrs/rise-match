@@ -168,6 +168,7 @@ function ClientPortalInner() {
   const [userToken, setUserToken] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const [checklist, setChecklist] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState<"matches" | "messages" | "documents" | "parcours">("matches")
 
   useEffect(() => {
     const token = localStorage.getItem("rise_user_token")
@@ -279,211 +280,238 @@ function ClientPortalInner() {
     router.push("/")
   }
 
+  const TABS = [
+    { id: "matches"   as const, label: "MES MATCHS" },
+    { id: "messages"  as const, label: "MESSAGERIE" },
+    { id: "documents" as const, label: "MES DOCUMENTS" },
+    { id: "parcours"  as const, label: "MON PARCOURS" },
+  ]
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.navy, color: C.white, ...INTER }}>
+      {/* ── Header ── */}
       <header style={{ backgroundColor: C.navyLight, height: 72, borderBottom: `1px solid rgba(255,255,255,0.1)`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <Link href="/" style={{ textDecoration: "none" }}>
             <div style={{ ...BEBAS, fontSize: 28, letterSpacing: 1, lineHeight: 1 }}>
               <span style={{ color: C.maize }}>RISE</span><span style={{ color: "#fff" }}>.MATCH</span>
             </div>
           </Link>
           <span style={{ color: C.slate, fontSize: 14 }}>|</span>
-          <span style={{ ...BEBAS, fontSize: 18, color: C.white, letterSpacing: 1 }}>DASHBOARD ATHLÈTE</span>
-          {unreadCount > 0 && (
-            <span style={{ backgroundColor: C.maize, color: C.navy, borderRadius: 999, minWidth: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, padding: "0 6px" }}>
-              {unreadCount}
-            </span>
-          )}
+          <span style={{ ...BEBAS, fontSize: 16, color: C.white, letterSpacing: 1 }}>
+            BIENVENUE, {user?.first_name?.toUpperCase()}
+          </span>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ backgroundColor: "rgba(46,204,113,0.1)", color: C.green, padding: "4px 10px", borderRadius: 4, ...BEBAS, fontSize: 13, letterSpacing: 1 }}>ACTIF</span>
           <button
             onClick={() => router.push("/client/profile")}
-            style={{ background: "transparent", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "8px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, ...INTER }}
+            style={{ background: "transparent", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "8px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: "Inter, sans-serif" }}
           >
             👤 Mon profil
           </button>
           <button onClick={handleLogout} style={{ backgroundColor: "rgba(231,76,60,0.1)", border: `1px solid ${C.red}`, color: C.red, padding: "8px 16px", borderRadius: 6, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}>
-            DÉCONNEXION
+            DÉCO
           </button>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 20px" }}>
-        <div style={{ marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div>
-            <h1 style={{ ...BEBAS, fontSize: 40, color: C.white, margin: "0 0 8px", letterSpacing: 1 }}>BIENVENUE, {user?.first_name?.toUpperCase()}</h1>
-            <p style={{ color: C.slate, margin: 0, fontSize: 14 }}>Voici tes listes de matchs validées par l'équipe.</p>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <span style={{ ...BEBAS, fontSize: 14, color: C.slate, letterSpacing: 1, display: "block" }}>STATUT DU COMPTE</span>
-            <span style={{ backgroundColor: "rgba(46,204,113,0.1)", color: C.green, padding: "4px 10px", borderRadius: 4, ...BEBAS, fontSize: 16, letterSpacing: 1 }}>ACTIF</span>
-          </div>
-        </div>
-
-        {/* Section MON PARCOURS */}
-        {checklist && (
-          <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px", marginBottom: 32 }}>
-            {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: 0 }}>
-                MON PARCOURS — {checklist.done}/{checklist.total} ÉTAPES
-              </p>
-              <span style={{ ...MONO, color: C.maize, fontSize: 14, fontWeight: 700 }}>
-                {checklist.progress_pct}%
-              </span>
-            </div>
-
-            {/* Progress bar */}
-            <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, marginBottom: 20, overflow: "hidden" }}>
-              <div style={{
-                height: "100%",
-                width: `${checklist.progress_pct}%`,
-                background: `linear-gradient(90deg, ${C.maize}, ${C.maizeDark})`,
-                borderRadius: 3,
-                transition: "width 0.5s ease",
-              }} />
-            </div>
-
-            {/* Steps grouped by category */}
-            {(Object.entries(
-              (checklist.steps as any[]).reduce((acc: Record<string, any[]>, step: any) => {
-                if (!acc[step.category]) acc[step.category] = []
-                acc[step.category].push(step)
-                return acc
-              }, {})
-            ) as [string, any[]][]).map(([cat, catSteps]) => (
-              <div key={cat} style={{ marginBottom: 12 }}>
-                <p style={{ ...BEBAS, color: C.slate, fontSize: 11, letterSpacing: 2, margin: "0 0 6px" }}>
-                  {checklist.category_labels[cat] || cat}
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {catSteps.map((step: any) => (
-                    <div key={step.id} style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "6px 8px", borderRadius: 6,
-                      background: step.done ? "rgba(46,204,113,0.06)" : "rgba(255,255,255,0.02)",
-                    }}>
-                      <div style={{
-                        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        background: step.done ? C.green : "transparent",
-                        border: `2px solid ${step.done ? C.green : "rgba(255,255,255,0.2)"}`,
-                        fontSize: 10, color: C.white,
-                      }}>
-                        {step.done && "✓"}
-                      </div>
-                      <span style={{
-                        fontSize: 13, ...INTER,
-                        color: step.done ? C.slateLight : C.slate,
-                        textDecoration: step.done ? "line-through" : "none",
-                      }}>
-                        {step.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            <p style={{ color: C.slate, fontSize: 11, margin: "12px 0 0", fontStyle: "italic", ...INTER }}>
-              Les étapes sont validées par l'équipe RISE Athletics
-            </p>
-          </div>
-        )}
-
-        {sessions.length === 0 ? (
-          <div style={{ backgroundColor: C.navyLight, borderRadius: 12, padding: 48, textAlign: "center", border: `1px solid rgba(255,255,255,0.05)` }}>
-            <p style={{ color: C.slate, fontSize: 15, marginBottom: 24 }}>Aucun match n'a encore été publié sur ton profil.</p>
-            <button onClick={goToNewSearch} style={{ backgroundColor: "rgba(255,203,5,0.1)", color: C.maize, border: `1px solid ${C.maize}`, padding: "10px 20px", borderRadius: 6, ...BEBAS, fontSize: 16, cursor: "pointer", letterSpacing: 1 }}>
-              LANCER UNE NOUVELLE RECHERCHE
+      {/* ── Tab bar ── */}
+      <div style={{ position: "sticky", top: 72, zIndex: 40, backgroundColor: C.navy, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px", display: "flex" }}>
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: "14px 20px",
+                color: activeTab === tab.id ? C.maize : C.slate,
+                borderBottom: `2px solid ${activeTab === tab.id ? C.maize : "transparent"}`,
+                marginBottom: -1,
+                ...BEBAS, fontSize: 15, letterSpacing: 1,
+                display: "flex", alignItems: "center", gap: 8,
+                transition: "color 0.15s",
+              }}
+            >
+              {tab.label}
+              {tab.id === "messages" && unreadCount > 0 && (
+                <span style={{ backgroundColor: C.maize, color: C.navy, borderRadius: 999, minWidth: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, padding: "0 5px" }}>
+                  {unreadCount}
+                </span>
+              )}
             </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            {sessions.map((session, i) => {
-              // Normalize published_matches: backend may return a JSON string instead of a parsed array
-              let publishedMatches: any[] | null = null
-              if (Array.isArray(session.published_matches)) {
-                publishedMatches = session.published_matches
-              } else if (typeof session.published_matches === "string") {
-                try { publishedMatches = JSON.parse(session.published_matches) } catch { publishedMatches = null }
-              }
+          ))}
+        </div>
+      </div>
 
-              return (
-              <div key={i} style={{ backgroundColor: C.navyLight, borderRadius: 12, border: `1px solid rgba(255,255,255,0.05)`, overflow: "hidden" }}>
-                <div style={{ padding: "16px 24px", borderBottom: `1px solid rgba(255,255,255,0.05)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, margin: 0, letterSpacing: 1 }}>
-                    {session.admin_label || `Session #${session.id}`}
-                  </h2>
-                  <span style={{ fontSize: 12, color: C.slate }}>
-                    {session.created_at ? `Publié le ${new Date(session.created_at).toLocaleDateString("fr-FR")}` : ""}
-                  </span>
-                </div>
+      <main style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 20px 64px" }}>
 
-                <div style={{ padding: 24 }}>
-                  {Array.isArray(publishedMatches) && publishedMatches.length > 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {publishedMatches.map((match: any, idx: number) => {
-                        const isNCAA = typeof match.team_id === "number"
-                        return (
-                        <div key={idx} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 8, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid rgba(255,255,255,0.02)`, cursor: isNCAA ? "pointer" : "default", opacity: isNCAA ? 1 : 0.85 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                            <span style={{ ...BEBAS, fontSize: 24, color: C.slate }}>#{idx + 1}</span>
-                            <div>
-                              <h3 style={{ margin: "0 0 4px", fontSize: 16, color: C.white, fontWeight: 600 }}>{match.name}</h3>
-                              <div style={{ fontSize: 12, color: C.slate, ...MONO }}>{match.division} · {match.state}</div>
-                              {!isNCAA && (
-                                <span style={{ fontSize: 10, color: C.slate, fontStyle: "italic", fontFamily: "Inter, sans-serif" }}>
-                                  Page détail non disponible pour USports
-                                </span>
+        {/* ── Mes Matchs ── */}
+        {activeTab === "matches" && (
+          sessions.length === 0 ? (
+            <div style={{ backgroundColor: C.navyLight, borderRadius: 12, padding: 48, textAlign: "center", border: `1px solid rgba(255,255,255,0.05)` }}>
+              <p style={{ color: C.slate, fontSize: 15, marginBottom: 24 }}>Aucun match n'a encore été publié sur ton profil.</p>
+              <button onClick={goToNewSearch} style={{ backgroundColor: "rgba(255,203,5,0.1)", color: C.maize, border: `1px solid ${C.maize}`, padding: "10px 20px", borderRadius: 6, ...BEBAS, fontSize: 16, cursor: "pointer", letterSpacing: 1 }}>
+                LANCER UNE NOUVELLE RECHERCHE
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {sessions.map((session, i) => {
+                let publishedMatches: any[] | null = null
+                if (Array.isArray(session.published_matches)) {
+                  publishedMatches = session.published_matches
+                } else if (typeof session.published_matches === "string") {
+                  try { publishedMatches = JSON.parse(session.published_matches) } catch { publishedMatches = null }
+                }
+
+                return (
+                <div key={i} style={{ backgroundColor: C.navyLight, borderRadius: 12, border: `1px solid rgba(255,255,255,0.05)`, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 24px", borderBottom: `1px solid rgba(255,255,255,0.05)`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, margin: 0, letterSpacing: 1 }}>
+                      {session.admin_label || `Session #${session.id}`}
+                    </h2>
+                    <span style={{ fontSize: 12, color: C.slate }}>
+                      {session.created_at ? `Publié le ${new Date(session.created_at).toLocaleDateString("fr-FR")}` : ""}
+                    </span>
+                  </div>
+
+                  <div style={{ padding: 24 }}>
+                    {Array.isArray(publishedMatches) && publishedMatches.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {publishedMatches.map((match: any, idx: number) => {
+                          const isNCAA = typeof match.team_id === "number"
+                          return (
+                          <div key={idx} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 8, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid rgba(255,255,255,0.02)`, cursor: isNCAA ? "pointer" : "default", opacity: isNCAA ? 1 : 0.85 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                              <span style={{ ...BEBAS, fontSize: 24, color: C.slate }}>#{idx + 1}</span>
+                              <div>
+                                <h3 style={{ margin: "0 0 4px", fontSize: 16, color: C.white, fontWeight: 600 }}>{match.name}</h3>
+                                <div style={{ fontSize: 12, color: C.slate, ...MONO }}>{match.division} · {match.state}</div>
+                                {!isNCAA && (
+                                  <span style={{ fontSize: 10, color: C.slate, fontStyle: "italic", fontFamily: "Inter, sans-serif" }}>
+                                    Page détail non disponible pour USports
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 11, color: C.slate, marginBottom: 4 }}>TOTAL</div>
+                                <div style={{ ...BEBAS, fontSize: 24, color: C.maize, lineHeight: 1 }}>{match.score_total}/100</div>
+                              </div>
+                              {isNCAA ? (
+                                <button
+                                  onClick={() => router.push(`/school/${match.team_id}`)}
+                                  style={{ backgroundColor: "transparent", border: `1px solid ${C.slate}`, color: C.white, padding: "8px 16px", borderRadius: 6, ...BEBAS, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
+                                  onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
+                                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.slate; e.currentTarget.style.color = C.white }}
+                                >
+                                  DÉTAILS →
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: 12, color: C.slate, ...BEBAS, letterSpacing: 1 }}>CA 🇨🇦</span>
                               )}
                             </div>
                           </div>
-
-                          <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-                            <div style={{ textAlign: "right" }}>
-                              <div style={{ fontSize: 11, color: C.slate, marginBottom: 4 }}>TOTAL</div>
-                              <div style={{ ...BEBAS, fontSize: 24, color: C.maize, lineHeight: 1 }}>{match.score_total}/100</div>
-                            </div>
-                            {isNCAA ? (
-                              <button
-                                onClick={() => router.push(`/school/${match.team_id}`)}
-                                style={{ backgroundColor: "transparent", border: `1px solid ${C.slate}`, color: C.white, padding: "8px 16px", borderRadius: 6, ...BEBAS, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = C.maize; e.currentTarget.style.color = C.maize }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = C.slate; e.currentTarget.style.color = C.white }}
-                              >
-                                DÉTAILS →
-                              </button>
-                            ) : (
-                              <span style={{ fontSize: 12, color: C.slate, ...BEBAS, letterSpacing: 1 }}>CA 🇨🇦</span>
-                            )}
-                          </div>
-                        </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p style={{ color: C.slate, fontSize: 14, margin: 0, fontStyle: "italic" }}>Les résultats de cette session sont en cours d'analyse.</p>
-                  )}
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p style={{ color: C.slate, fontSize: 14, margin: 0, fontStyle: "italic" }}>Les résultats de cette session sont en cours d'analyse.</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )
         )}
 
-        {/* Section Messages */}
-        <div style={{ marginTop: 48 }}>
-          <h2 style={{ ...BEBAS, fontSize: 28, color: C.white, margin: "0 0 16px", letterSpacing: 1 }}>MESSAGERIE</h2>
+        {/* ── Messagerie ── */}
+        {activeTab === "messages" && (
           <ChatWidget mode="athlete" userToken={userToken ?? undefined} />
-        </div>
+        )}
 
-        {/* Section Documents */}
-        <div style={{ marginTop: 40, marginBottom: 48 }}>
-          <h2 style={{ ...BEBAS, fontSize: 28, color: C.white, margin: "0 0 16px", letterSpacing: 1 }}>MES DOCUMENTS</h2>
+        {/* ── Documents ── */}
+        {activeTab === "documents" && (
           <DocumentsSection mode="athlete" userToken={userToken ?? undefined} />
-        </div>
+        )}
+
+        {/* ── Mon Parcours ── */}
+        {activeTab === "parcours" && (
+          checklist ? (
+            <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: 0 }}>
+                  {checklist.done}/{checklist.total} ÉTAPES COMPLÉTÉES
+                </p>
+                <span style={{ ...MONO, color: C.maize, fontSize: 14, fontWeight: 700 }}>
+                  {checklist.progress_pct}%
+                </span>
+              </div>
+
+              <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, marginBottom: 24, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${checklist.progress_pct}%`,
+                  background: `linear-gradient(90deg, ${C.maize}, ${C.maizeDark})`,
+                  borderRadius: 3,
+                  transition: "width 0.5s ease",
+                }} />
+              </div>
+
+              {(Object.entries(
+                (checklist.steps as any[]).reduce((acc: Record<string, any[]>, step: any) => {
+                  if (!acc[step.category]) acc[step.category] = []
+                  acc[step.category].push(step)
+                  return acc
+                }, {})
+              ) as [string, any[]][]).map(([cat, catSteps]) => (
+                <div key={cat} style={{ marginBottom: 16 }}>
+                  <p style={{ ...BEBAS, color: C.slate, fontSize: 11, letterSpacing: 2, margin: "0 0 8px" }}>
+                    {checklist.category_labels[cat] || cat}
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {catSteps.map((step: any) => (
+                      <div key={step.id} style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        padding: "8px 10px", borderRadius: 6,
+                        background: step.done ? "rgba(46,204,113,0.06)" : "rgba(255,255,255,0.02)",
+                      }}>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: step.done ? C.green : "transparent",
+                          border: `2px solid ${step.done ? C.green : "rgba(255,255,255,0.2)"}`,
+                          fontSize: 10, color: C.white,
+                        }}>
+                          {step.done && "✓"}
+                        </div>
+                        <span style={{
+                          fontSize: 13, fontFamily: "Inter, sans-serif",
+                          color: step.done ? C.slateLight : C.slate,
+                          textDecoration: step.done ? "line-through" : "none",
+                        }}>
+                          {step.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <p style={{ color: C.slate, fontSize: 11, margin: "12px 0 0", fontStyle: "italic", fontFamily: "Inter, sans-serif" }}>
+                Les étapes sont validées par l'équipe RISE Athletics
+              </p>
+            </div>
+          ) : (
+            <p style={{ color: C.slate, fontSize: 14, fontStyle: "italic" }}>Chargement du parcours...</p>
+          )
+        )}
+
       </main>
     </div>
   )

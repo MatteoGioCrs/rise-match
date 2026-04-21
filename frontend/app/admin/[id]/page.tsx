@@ -234,8 +234,43 @@ export default function AthleteFilePage() {
         </div>
       </div>
 
+      {/* ── Sticky section nav ── */}
+      <div style={{
+        position: "sticky", top: 0, zIndex: 40,
+        background: C.navy,
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        margin: "0 -32px 28px",
+        padding: "0 32px",
+        display: "flex", overflowX: "auto",
+      }}>
+        {([
+          { anchor: "sec-notes",     label: "NOTES" },
+          ...(athleteProfile ? [{ anchor: "sec-profil",    label: "PROFIL" }]    : []),
+          ...(checklist      ? [{ anchor: "sec-checklist", label: "CHECKLIST" }] : []),
+          { anchor: "sec-messages",  label: "MESSAGES" },
+          { anchor: "sec-documents", label: "DOCS" },
+          { anchor: "sec-matches",   label: "MATCHS" },
+        ] as { anchor: string; label: string }[]).map(({ anchor, label }) => (
+          <button
+            key={anchor}
+            onClick={() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            style={{
+              background: "none", border: "none", borderBottom: "2px solid transparent",
+              cursor: "pointer", padding: "12px 16px", marginBottom: -1,
+              ...BEBAS, fontSize: 13, letterSpacing: 1, color: C.slate,
+              whiteSpace: "nowrap", flexShrink: 0,
+              transition: "color 0.15s, border-color 0.15s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = C.maize; e.currentTarget.style.borderBottomColor = C.maize }}
+            onMouseLeave={e => { e.currentTarget.style.color = C.slate; e.currentTarget.style.borderBottomColor = "transparent" }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* 2-column grid: times + notes */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+      <div id="sec-notes" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
 
         {/* Section 1 — Temps saisis */}
         <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24 }}>
@@ -301,7 +336,7 @@ export default function AthleteFilePage() {
 
       {/* Section 3 — Profil athlète */}
       {athleteProfile && Object.keys(athleteProfile).length > 1 && (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+        <div id="sec-profil" style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
           <h2 style={{ ...BEBAS, fontSize: 20, color: C.maize, letterSpacing: 2, margin: "0 0 16px" }}>PROFIL ATHLÈTE</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }}>
             {[
@@ -334,7 +369,7 @@ export default function AthleteFilePage() {
 
       {/* Section 4 — Checklist NCAA */}
       {checklist && (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
+        <div id="sec-checklist" style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: "20px 24px", marginBottom: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: 0 }}>
               CHECKLIST — {checklist.done}/{checklist.total} ({checklist.progress_pct}%)
@@ -373,7 +408,7 @@ export default function AthleteFilePage() {
 
       {/* Section 5 — Messagerie */}
       {session.user_id ? (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+        <div id="sec-messages" style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
           <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: "0 0 16px" }}>MESSAGERIE</p>
           <ChatWidget
             mode="admin"
@@ -383,7 +418,7 @@ export default function AthleteFilePage() {
           />
         </div>
       ) : (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+        <div id="sec-messages" style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
           <p style={{ color: C.slate, fontSize: 13, margin: 0, fontStyle: "italic" }}>
             💬 Messagerie indisponible — cette session n'est pas encore liée à un compte athlète.
           </p>
@@ -392,7 +427,7 @@ export default function AthleteFilePage() {
 
       {/* Section 6 — Documents */}
       {session.user_id ? (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+        <div id="sec-documents" style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <p style={{ ...BEBAS, color: C.maize, fontSize: 12, letterSpacing: 2, margin: 0 }}>
               DOCUMENTS ({documents.length})
@@ -454,7 +489,7 @@ export default function AthleteFilePage() {
           )}
         </div>
       ) : (
-        <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+        <div id="sec-documents" style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
           <p style={{ color: C.slate, fontSize: 13, margin: 0, fontStyle: "italic" }}>
             📁 Documents indisponibles — cette session n'est pas encore liée à un compte athlète.
           </p>
@@ -462,7 +497,7 @@ export default function AthleteFilePage() {
       )}
 
       {/* Section 7 — Matchs */}
-      <div style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24 }}>
+      <div id="sec-matches" style={{ background: C.navyLight, border: "1px solid rgba(255,203,5,0.15)", borderRadius: 12, padding: 24 }}>
 
         {/* Section header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
