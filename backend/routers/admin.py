@@ -54,22 +54,24 @@ async def list_sessions(
         params: list = []
         if status:
             params.append(status)
-            where += f" AND admin_status = ${len(params)}"
+            where += f" AND s.admin_status = ${len(params)}"
 
         params.extend([limit, offset])
         rows = await conn.fetch(f"""
-            SELECT id, session_token, gender, divisions, times_input,
-                   results_count, top_match, ip_address, created_at,
-                   admin_label, admin_status, admin_notes
-            FROM search_sessions
+            SELECT s.id, s.session_token, s.gender, s.divisions, s.times_input,
+                   s.results_count, s.top_match, s.ip_address, s.created_at,
+                   s.admin_label, s.admin_status, s.admin_notes, s.user_id,
+                   u.email AS user_email, u.first_name, u.last_name
+            FROM search_sessions s
+            LEFT JOIN users u ON u.id = s.user_id
             {where}
-            ORDER BY created_at DESC
+            ORDER BY s.created_at DESC
             LIMIT ${len(params) - 1} OFFSET ${len(params)}
         """, *params)
 
         count_params = params[:-2] if len(params) > 2 else []
         total = await conn.fetchval(
-            f"SELECT COUNT(*) FROM search_sessions {where}",
+            f"SELECT COUNT(*) FROM search_sessions s LEFT JOIN users u ON u.id = s.user_id {where}",
             *count_params,
         )
 

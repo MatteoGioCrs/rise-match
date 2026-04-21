@@ -34,11 +34,13 @@ const BEBAS: React.CSSProperties = { fontFamily: "Bebas Neue, sans-serif" }
 const INTER: React.CSSProperties = { fontFamily: "Inter, sans-serif" }
 
 export default function ChatWidget({ mode, userId, userToken, adminToken, userName }: ChatWidgetProps) {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput]       = useState("")
-  const [sending, setSending]   = useState(false)
-  const bottomRef               = useRef<HTMLDivElement>(null)
-  const textareaRef             = useRef<HTMLTextAreaElement>(null)
+  const [messages,  setMessages]  = useState<Message[]>([])
+  const [input,     setInput]     = useState("")
+  const [sending,   setSending]   = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [sendError,  setSendError]  = useState<string | null>(null)
+  const bottomRef   = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const fetchMessages = useCallback(async () => {
     if (mode === "admin" && !userId) return
@@ -54,10 +56,16 @@ export default function ChatWidget({ mode, userId, userToken, adminToken, userNa
 
     try {
       const res = await fetch(url, { headers })
-      if (!res.ok) return
+      if (!res.ok) {
+        setFetchError(`Erreur ${res.status} — impossible de charger les messages`)
+        return
+      }
+      setFetchError(null)
       const data = await res.json()
       setMessages(data.messages ?? [])
-    } catch { /* ignore */ }
+    } catch {
+      setFetchError("Connexion impossible au serveur")
+    }
   }, [mode, userId, userToken, adminToken])
 
   useEffect(() => {
@@ -93,13 +101,19 @@ export default function ChatWidget({ mode, userId, userToken, adminToken, userNa
         headers,
         body: JSON.stringify({ content }),
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        setSendError("Échec de l'envoi — réessayez")
+        return
+      }
+      setSendError(null)
       setInput("")
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto"
       }
       await fetchMessages()
-    } catch { /* ignore */ }
+    } catch {
+      setSendError("Connexion impossible au serveur")
+    }
     finally { setSending(false) }
   }
 
@@ -140,7 +154,11 @@ export default function ChatWidget({ mode, userId, userToken, adminToken, userNa
 
       {/* Messages list */}
       <div style={{ minHeight: 200, maxHeight: 400, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {messages.length === 0 ? (
+        {fetchError ? (
+          <p style={{ color: "#E74C3C", fontSize: 13, textAlign: "center", margin: "auto", fontStyle: "italic" }}>
+            ⚠️ {fetchError}
+          </p>
+        ) : messages.length === 0 ? (
           <p style={{ color: C.slate, fontSize: 14, textAlign: "center", margin: "auto", fontStyle: "italic" }}>
             Aucun message pour l'instant.
           </p>
@@ -172,7 +190,11 @@ export default function ChatWidget({ mode, userId, userToken, adminToken, userNa
       </div>
 
       {/* Input */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 16px", display: "flex", gap: 10, alignItems: "flex-end" }}>
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {sendError && (
+          <p style={{ color: "#E74C3C", fontSize: 12, margin: 0, fontFamily: "Inter, sans-serif" }}>⚠️ {sendError}</p>
+        )}
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
         <textarea
           ref={textareaRef}
           value={input}
@@ -203,6 +225,7 @@ export default function ChatWidget({ mode, userId, userToken, adminToken, userNa
         >
           {sending ? "…" : "→"}
         </button>
+        </div>
       </div>
     </div>
   )

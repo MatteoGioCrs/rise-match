@@ -1,54 +1,43 @@
 # RISE.MATCH — CONTEXT DE DÉVELOPPEMENT
 
-> Document de référence exhaustif. Généré le 2026-04-18.
+> Document de référence exhaustif. Mis à jour le 2026-04-20.
 > À mettre à jour après tout changement structurel.
 
 ---
 
 ## 1. DESIGN SYSTEM
 
-### Couleurs (CSS vars dans `globals.css`, objet `C` dupliqué dans chaque page TSX)
+### Couleurs (objet `C` dupliqué dans chaque page TSX)
 
-| Variable CSS      | Hex       | Usage                                |
-|-------------------|-----------|--------------------------------------|
-| `--navy`          | `#0B1628` | Fond principal, fond body            |
-| `--navy-light`    | `#152236` | Cartes, panels, sidebar admin        |
-| `--navy-mid`      | `#1E3A5F` | Hover states, séparateurs            |
-| `--maize`         | `#FFCB05` | Accent primaire, titres, CTA         |
-| `--maize-dark`    | `#E6B800` | Hover sur maize                      |
-| `--white`         | `#FFFFFF` | Texte principal                      |
-| `--paper`         | `#F5F0E8` | Fond alternatif (peu utilisé)        |
-| `--slate`         | `#8A9BB0` | Texte secondaire, labels, métadatas  |
-| `--slate-light`   | `#B8C8D8` | Texte tertiaire                      |
-| `--green`         | `#2ECC71` | Statut positif, score élevé          |
-| `--orange`        | `#F39C12` | Statut intermédiaire, avertissement  |
-| `--red`           | `#E74C3C` | Erreurs, statut négatif              |
+| Variable  | Hex       | Usage                                |
+|-----------|-----------|--------------------------------------|
+| `navy`    | `#0B1628` | Fond principal, fond body            |
+| `navyLight`| `#152236` | Cartes, panels, sidebar admin       |
+| `navyMid` | `#1E3A5F` | Hover states, séparateurs            |
+| `maize`   | `#FFCB05` | Accent primaire, titres, CTA         |
+| `white`   | `#FFFFFF` | Texte principal                      |
+| `slate`   | `#8A9BB0` | Texte secondaire, labels             |
+| `slateLight`| `#B8C8D8`| Texte tertiaire                     |
+| `green`   | `#2ECC71` | Statut positif, score élevé          |
+| `orange`  | `#F39C12` | Statut intermédiaire                 |
+| `red`     | `#E74C3C` | Erreurs, statut négatif              |
 
-### Polices (chargées via Google Fonts dans `layout.tsx`)
-- **Bebas Neue** — titres, numéros de rang, scores (style sportif)
+### Polices
+- **Bebas Neue** — titres, rangs, scores (style sportif)
 - **Space Mono** — données techniques, chrono, tokens
 - **Inter** — corps de texte, labels, formulaires
 
-### Constantes de style inline (pattern répété dans tous les fichiers TSX)
+### Constantes inline (pattern répété dans tous les TSX)
 ```tsx
 const BEBAS: CSSProperties = { fontFamily: "Bebas Neue, sans-serif" }
 const MONO:  CSSProperties = { fontFamily: "Space Mono, monospace" }
 const INTER: CSSProperties = { fontFamily: "Inter, sans-serif" }
 ```
 
-### Convention de style
-- **Zéro Tailwind en runtime** — toutes les classes Tailwind sont des utilitaires statiques. Tout le style dynamique passe par `style={{ ... }}` inline.
-- Les `globals.css` définissent uniquement les CSS vars, les animations keyframe (`fadeInUp`, `shimmer`, `pulse`), et le scrollbar custom.
-- Animations : `shimmer` = skeleton loading (background-position 200% → -200%), `fadeInUp` = apparition avec translate Y, `pulse` = opacité pulsée.
-- Scrollbar : 6px wide, track navy, thumb maize.
-- Selection : background maize, couleur navy.
-
-### Composants récurrents
-- **Navbar** : hauteur 72px, bordure bottom 2px maize, logo SVG `/rise-logo.svg`, liens contextuels.
-- **Cartes** : `backgroundColor: navyLight`, `borderRadius: 12`, `border: 1px solid rgba(255,255,255,0.05)`.
-- **Boutons primaires** : fond maize, couleur navy, Bebas Neue, `borderRadius: 6–8`, hover fond maize-dark.
-- **Badges de statut** : inline, petits, fond semi-transparent coloré selon état.
-- **Skeleton** : shimmer gradient `linear-gradient(90deg, navyLight 25%, navyMid 50%, navyLight 75%)`.
+### Conventions de style
+- **Zéro Tailwind en runtime** — tout style dynamique passe par `style={{ ... }}` inline.
+- `globals.css` : CSS vars, keyframes (`fadeInUp`, `shimmer`, `pulse`), scrollbar custom.
+- Scrollbar : 6px, track navy, thumb maize. Sélection : bg maize, couleur navy.
 
 ---
 
@@ -64,55 +53,102 @@ const INTER: CSSProperties = { fontFamily: "Inter, sans-serif" }
 - **CORS autorisés** : `https://rise-match-gtqb.vercel.app`, `http://localhost:3000`, `http://localhost:3001`
 
 ### Variables d'environnement requises
-| Var              | Usage                                                      |
-|------------------|------------------------------------------------------------|
-| `DATABASE_URL`   | URL PostgreSQL Railway (asyncpg)                           |
-| `ADMIN_PASSWORD` | Mot de passe admin CRM + fallback JWT_SECRET               |
+| Var              | Usage                                                         |
+|------------------|---------------------------------------------------------------|
+| `DATABASE_URL`   | URL PostgreSQL Railway (asyncpg)                              |
+| `ADMIN_PASSWORD` | Mot de passe admin CRM + fallback JWT_SECRET                  |
 | `JWT_SECRET`     | Signature des tokens athlètes (si absent, utilise ADMIN_PASSWORD) |
+| `CLOUDINARY_URL` | Stockage fichiers documents (format `cloudinary://api_key:api_secret@cloud_name`) |
 
-### Routes Backend
+---
 
-#### `main.py`
-| Méthode | Route            | Auth   | Description                                   |
-|---------|------------------|--------|-----------------------------------------------|
-| GET     | `/health`        | Aucune | Health check                                  |
-| GET     | `/api/debug/db`  | Admin  | Compte sc_teams, sc_swimmers, sc_times, last worker run |
+## 3. ROUTES BACKEND (tous les routers)
 
-#### `routers/match.py`
+### `main.py`
+| Méthode | Route           | Auth  | Description                            |
+|---------|-----------------|-------|----------------------------------------|
+| GET     | `/health`       | Aucune| Health check                           |
+| GET     | `/api/debug/db` | Admin | Stats DB (sc_teams, sc_swimmers, etc.) |
+
+### `routers/match.py`
+| Méthode | Route                   | Auth  | Description                            |
+|---------|-------------------------|-------|----------------------------------------|
+| POST    | `/api/match`            | Aucune| Calcul matching, crée search_session   |
+| GET     | `/api/school/{team_id}` | Aucune| Détail d'une école (swimcloud_id)      |
+
+**Body `/api/match`** : `{ times, gender, divisions, states?, regions?, specialite? }`
+— **`focus` N'EST PAS ENCORE IMPLÉMENTÉ** (pending feature)
+
+### `routers/auth.py`
 | Méthode | Route                    | Auth   | Description                                   |
 |---------|--------------------------|--------|-----------------------------------------------|
-| POST    | `/api/match`             | Aucune | Calcul matching, crée une search_session      |
-| GET     | `/api/school/{team_id}`  | Aucune | Détail d'une école (team_id = entier swimcloud_id) |
+| POST    | `/api/auth/register`     | Aucune | Création compte, lie session_token optionnel  |
+| POST    | `/api/auth/login`        | Aucune | Connexion, lie session_token optionnel        |
+| GET     | `/api/auth/me`           | Bearer | Profil utilisateur courant                    |
+| POST    | `/api/auth/link-session` | Bearer | Ajoute un session_token au compte connecté    |
+| GET     | `/api/auth/my-matches`   | Bearer | Toutes sessions liées + published_matches     |
 
-#### `routers/auth.py`
-| Méthode | Route                     | Auth   | Description                                    |
-|---------|---------------------------|--------|------------------------------------------------|
-| POST    | `/api/auth/register`      | Aucune | Création compte, lie session_token optionnel   |
-| POST    | `/api/auth/login`         | Aucune | Connexion, lie session_token optionnel         |
-| GET     | `/api/auth/me`            | Bearer | Profil utilisateur courant                     |
-| POST    | `/api/auth/link-session`  | Bearer | Ajoute un session_token au compte connecté     |
-| GET     | `/api/auth/my-matches`    | Bearer | Toutes les sessions liées + published_matches  |
+### `routers/admin.py`
+| Méthode | Route                                   | Auth  | Description                               |
+|---------|-----------------------------------------|-------|-------------------------------------------|
+| POST    | `/api/admin/auth`                       | Aucune| Auth admin → token                        |
+| GET     | `/api/admin/verify`                     | Query | Vérifie validité token admin              |
+| GET     | `/api/admin/sessions`                   | Admin | Liste sessions (pagination, filtre status)|
+| PATCH   | `/api/admin/sessions/{id}`              | Admin | Met à jour label/status/notes             |
+| GET     | `/api/admin/sessions/{id}/detail`       | Admin | Détail complet d'une session              |
+| POST    | `/api/admin/sessions/{id}/rematch`      | Admin | Relance le matching                       |
+| PATCH   | `/api/admin/sessions/{id}/notes`        | Admin | Met à jour admin_notes uniquement         |
+| POST    | `/api/admin/sessions/{id}/publish`      | Admin | Publie matches validés (JSONB)            |
+| GET     | `/api/sessions/{session_token}/results` | Aucune| Résultats publiés (public)                |
+| GET     | `/api/admin/users`                      | Admin | Liste tous les utilisateurs               |
+| PATCH   | `/api/admin/users/{id}/activate`        | Admin | Active/désactive + set plan               |
+| GET     | `/api/admin/users/{id}/sessions`        | Admin | Sessions liées à un user                  |
+| GET     | `/api/admin/stats`                      | Admin | KPIs, charts, pipeline                    |
+| PATCH   | `/api/admin/users/{id}`                 | Admin | Met à jour plan, is_active, session_token |
 
-#### `routers/admin.py`
-| Méthode | Route                                      | Auth  | Description                             |
-|---------|--------------------------------------------|-------|-----------------------------------------|
-| POST    | `/api/admin/auth`                          | Aucune| Authentification admin → token          |
-| GET     | `/api/admin/verify`                        | Query | Vérifie validité d'un token admin       |
-| GET     | `/api/admin/sessions`                      | Admin | Liste sessions (pagination, filtre status) |
-| PATCH   | `/api/admin/sessions/{id}`                 | Admin | Met à jour label/status/notes           |
-| GET     | `/api/admin/sessions/{id}/detail`          | Admin | Détail complet d'une session            |
-| POST    | `/api/admin/sessions/{id}/rematch`         | Admin | Relance le matching avec params originaux |
-| PATCH   | `/api/admin/sessions/{id}/notes`           | Admin | Met à jour admin_notes uniquement       |
-| POST    | `/api/admin/sessions/{id}/publish`         | Admin | Publie matches validés (JSONB)          |
-| GET     | `/api/sessions/{session_token}/results`    | Aucune| Résultats publiés pour athlète (public) |
-| GET     | `/api/admin/users`                         | Admin | Liste tous les utilisateurs             |
-| PATCH   | `/api/admin/users/{id}/activate`           | Admin | Active/désactive + set plan             |
-| GET     | `/api/admin/users/{id}/sessions`           | Admin | Sessions liées à un user                |
-| PATCH   | `/api/admin/users/{id}`                    | Admin | Met à jour plan, is_active, add_session_token |
+### `routers/messages.py`
+| Méthode | Route                           | Auth   | Description                          |
+|---------|---------------------------------|--------|--------------------------------------|
+| GET     | `/api/messages/unread-count`    | Bearer | Nb messages non lus (athlète)        |
+| GET     | `/api/messages`                 | Bearer | Liste messages + mark as read        |
+| POST    | `/api/messages`                 | Bearer | Athlète envoie un message            |
+| GET     | `/api/admin/messages/unread`    | Admin  | Nb non lus par user (admin)          |
+| GET     | `/api/admin/messages/{user_id}` | Admin  | Conversation avec un athlète         |
+| POST    | `/api/admin/messages/{user_id}` | Admin  | Admin envoie un message              |
 
-### Schéma Base de Données (auto-créé au startup)
+### `routers/documents.py`
+| Méthode | Route                                | Auth   | Description                          |
+|---------|--------------------------------------|--------|--------------------------------------|
+| POST    | `/api/documents/upload`              | Bearer | Athlète upload un fichier (Cloudinary)|
+| GET     | `/api/documents`                     | Bearer | Liste documents de l'athlète         |
+| DELETE  | `/api/documents/{doc_id}`            | Bearer | Supprime un document                 |
+| POST    | `/api/admin/documents/{user_id}/upload` | Admin | Admin upload pour un athlète      |
+| GET     | `/api/admin/documents/{user_id}`     | Admin  | Liste documents d'un athlète         |
+| DELETE  | `/api/admin/documents/{doc_id}`      | Admin  | Admin supprime un document           |
 
-#### Table `users`
+### `routers/checklist.py`
+| Méthode | Route                              | Auth   | Description                          |
+|---------|------------------------------------|--------|--------------------------------------|
+| GET     | `/api/checklist`                   | Bearer | Checklist de l'athlète connecté      |
+| GET     | `/api/admin/checklist/{user_id}`   | Admin  | Checklist d'un athlète               |
+| PATCH   | `/api/admin/checklist/{user_id}`   | Admin  | Toggle step ou replace steps         |
+
+**Response shape** : `{ steps[], total, done, progress_pct, category_labels, updated_at }`
+**PATCH body** : `{ step_id, done }` (toggle unique) ou `{ steps: [...] }` (remplacement total)
+
+### `routers/profile.py`
+| Méthode | Route                            | Auth   | Description                          |
+|---------|----------------------------------|--------|--------------------------------------|
+| GET     | `/api/profile`                   | Bearer | Profil de l'athlète connecté         |
+| PUT     | `/api/profile`                   | Bearer | Athlète met à jour son profil        |
+| GET     | `/api/admin/profile/{user_id}`   | Admin  | Profil d'un athlète                  |
+| PATCH   | `/api/admin/profile/{user_id}`   | Admin  | Admin met à jour le profil           |
+
+---
+
+## 4. SCHÉMA BASE DE DONNÉES
+
+### `users`
 ```sql
 id             SERIAL PRIMARY KEY
 email          TEXT UNIQUE NOT NULL
@@ -120,351 +156,343 @@ password_hash  TEXT NOT NULL          -- SHA256("RISE_MATCH_2026" + password)
 first_name     TEXT
 last_name      TEXT
 created_at     TIMESTAMP DEFAULT NOW()
-is_active      BOOLEAN DEFAULT FALSE  -- manuel via admin
+is_active      BOOLEAN DEFAULT FALSE  -- activé manuellement par admin
 plan           TEXT DEFAULT 'free'    -- 'free' | 'match'
 session_tokens TEXT[] DEFAULT '{}'    -- array de session_token strings
 ```
 
-#### Table `search_sessions`
+### `search_sessions`
 ```sql
 id                SERIAL PRIMARY KEY
-session_token     TEXT UNIQUE           -- secrets.token_urlsafe(16)
+session_token     TEXT UNIQUE
 gender            TEXT                  -- 'M' | 'F'
-divisions         TEXT[]                -- ['division_1', ...]
+divisions         TEXT[]
 times_input       JSONB                 -- [{event, basin, time_seconds}, ...]
 results_count     INTEGER
-top_match         TEXT                  -- nom de l'équipe #1
+top_match         TEXT
 ip_address        TEXT
 created_at        TIMESTAMP DEFAULT NOW()
-admin_label       TEXT                  -- nom affiché dans le CRM / dashboard
-admin_status      TEXT DEFAULT 'nouveau'-- 'nouveau' | 'en cours' | 'accompagné'
+admin_label       TEXT
+admin_status      TEXT DEFAULT 'nouveau'
 admin_notes       TEXT
-published_matches JSONB                 -- array de match objects publiés par admin
+published_matches JSONB                 -- array de match objects
 user_id           INTEGER REFERENCES users(id) ON DELETE SET NULL
 ```
 
-#### Tables de données sportives (peuplées via worker SwimCloud)
-- `sc_teams` : swimcloud_id (PK), name, division, state, city, + join vers school_data
+### `documents`
+```sql
+id           SERIAL PRIMARY KEY
+user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+uploaded_by  TEXT                  -- 'athlete' | 'admin'
+file_name    TEXT NOT NULL
+file_url     TEXT NOT NULL         -- URL Cloudinary
+file_type    TEXT
+file_size    INTEGER
+label        TEXT
+created_at   TIMESTAMP DEFAULT NOW()
+```
+
+### `messages`
+```sql
+id          SERIAL PRIMARY KEY
+user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+sender      TEXT NOT NULL         -- 'athlete' | 'admin'
+sender_name TEXT
+content     TEXT NOT NULL
+is_read     BOOLEAN DEFAULT FALSE
+created_at  TIMESTAMP DEFAULT NOW()
+session_id  INTEGER REFERENCES search_sessions(id)
+```
+
+### `athlete_profiles`
+```sql
+id             SERIAL PRIMARY KEY
+user_id        INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE
+birth_year     INTEGER
+departure_year INTEGER
+current_level  TEXT
+english_level  TEXT
+toefl_score    INTEGER
+club_name      TEXT
+coach_name     TEXT
+coach_email    TEXT
+objective      TEXT
+budget_range   TEXT
+notes_perso    TEXT
+created_at     TIMESTAMP DEFAULT NOW()
+updated_at     TIMESTAMP DEFAULT NOW()
+```
+
+### `checklists`
+```sql
+id         SERIAL PRIMARY KEY
+user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+steps      JSONB NOT NULL DEFAULT '[]'   -- [{id, label, category, done, done_at}, ...]
+created_at TIMESTAMP DEFAULT NOW()
+updated_at TIMESTAMP DEFAULT NOW()
+```
+
+**15 étapes par défaut** dans 7 catégories : Evaluation, Dossier, Contact, Visite, Engagement, Admin, Départ.
+
+### Tables de données sportives (worker SwimCloud)
+- `sc_teams` : swimcloud_id (PK), name, division, state, city, + join school_data
 - `sc_swimmers` : swimcloud_id, team_swimcloud_id (FK), name, gender, is_departing
 - `sc_times` : swimmer_swimcloud_id (FK), event_code, time_seconds
-- `school_data` : swimcloud_id (FK), admission_rate, tuition_out_state, enrollment_total, median_earnings, school_type, retention_rate, pct_pell_grant, grad_debt_median, latitude, longitude, website, scorecard_name, has_engineering, has_business, has_sciences, has_humanities, has_arts, has_social_sciences, has_sports_kine, has_education, has_law, has_environment, top_programs
-- `data_freshness` : updated_at (timestamp du dernier worker run)
-
-### Authentification
-
-#### Auth admin
-- Token = `SHA256(ADMIN_PASSWORD + floor(unix_time/3600))` (hexa)
-- Valide pour l'heure courante ET l'heure précédente (sliding window d'1h)
-- Envoyé dans header `X-Admin-Token`
-
-#### Auth athlète (JWT-like custom)
-- Token = `base64(user_id:email:floor(unix_day)).hmac_sha256[:16]`
-- Valide pour le jour courant et le jour précédent (sliding window de 2 jours)
-- Envoyé dans header `Authorization: Bearer <token>`
-- Stocké dans `localStorage` sous la clé `rise_user_token`
-
-#### Hachage mot de passe
-- `SHA256("RISE_MATCH_2026" + password)` — sel statique, pas de bcrypt
+- `school_data` : swimcloud_id (FK), admission_rate, tuition_out_state, enrollment_total, median_earnings, school_type, retention_rate, pct_pell_grant, grad_debt_median, latitude, longitude, website, has_engineering, has_business, has_sciences, has_humanities, has_arts, ...
+- `data_freshness` : updated_at
 
 ---
 
-## 3. ÉTAT DE CHAQUE PAGE
+## 5. ÉTAT DE CHAQUE PAGE FRONTEND
 
-### `/` — Page principale (`frontend/app/page.tsx`)
+### `/` — Landing + Matching (`frontend/app/page.tsx`)
 
-**States** :
-1. `view: "landing"` — page d'accueil avec hero, CTA "Lancer le matching"
-2. `view: "form"` — formulaire multi-step (genre → divisions → spécialité → région → temps)
-3. `view: "loading"` — spinner pendant l'appel API `/api/match`
-4. `view: "results"` — liste de matchs, `selectedMatch` pour le détail
+**Vues** : `landing` → `form` → `loading` → `results`
 
-**Composants internes** :
-- `Navbar` — logo, liens "Mon Espace" / "Admin"
-- `LandingView` — hero avec animation fadeInUp, bouton CTA
-- `FormView` — stepper 5 étapes, validation, temps multi-épreuves
-- `LoadingView` — skeleton shimmer
-- `ResultsView` — liste top 20, `MatchCard` pour chaque match, `MatchDetail` sidebar/modal
-- `MatchCard` — rang (Bebas), nom équipe, ville/état, division badge, scores (sportif/académique/geo)
-- `MatchDetail` — scores détaillés par épreuve, données académiques (tuition, earnings, etc.)
-- `ScoreBar` — barre de progression colorée (vert/orange/rouge selon seuil)
+**Form** (5 étapes) : genre → divisions → spécialité → région → temps  
+**Filtres disponibles** : genre (M/F), divisions (D1/D2/D3/NAIA/NJCAA/USports), spécialité académique, états/régions, temps multi-épreuves
 
-**API appelée** : `POST /api/match` → `{ session_token, scy_times, matches: Match[] }`
+**States** : `user`, `userToken`, `unreadCount`, `checklist`, `appState`, `sessions`
 
-**Freemium gate** :
-- API retourne 20 matchs maximum
-- Frontend affiche les 20 mais bloque l'accès visuel à #1 et #2 (blur + overlay "Débloquer")
-- La vraie liste complète n'est PAS tronquée côté API — la limitation est uniquement UI
+**⚠️ PENDING** : `focus` state + toggle UI + filtre `minAcademicRank` + badge academic_rank sur les cards
 
-**Filtres form** :
-- Genre : M / F
-- Divisions : NCAA D1, D2, D3, NAIA (division_4), NJCAA (division_5), USports (division_10)
-- Spécialité académique : `all`, `has_engineering`, `has_business`, etc.
-- Région : East, West, Midwest, South (ou états précis)
-- Temps : liste d'objets `{ event, basin, time_seconds }`
+**Freemium gate** : #1 et #2 bloqués visuellement (blur + overlay) — limitation uniquement UI
+
+**Nav** : À propos, Comment ça marche, Le Sport aux USA, riseathletics.fr, TESTER L'ALGO
 
 ### `/client` — Dashboard athlète (`frontend/app/client/page.tsx`)
 
-**States** :
-1. `view: "auth"` — `AuthForm` (register/login), capture session_token depuis URL params
-2. `view: "dashboard"` — `DashboardView` — liste des sessions publiées
+**Vues** : `auth` (register/login) → `dashboard`
 
-**AuthForm** :
-- Toggle register/login
-- POST `/api/auth/register` ou `/api/auth/login` avec `session_token` du query param
-- Stocke `access_token` dans `localStorage["rise_user_token"]`
+**Fonctionnalités dashboard** :
+- Liste des sessions publiées avec matchs
+- **MON PARCOURS** : checklist NCAA (groupée par catégorie, read-only, progress bar)
+- **MES DOCUMENTS** : liste documents avec icônes, liens téléchargement
+- **MESSAGERIE** : ChatWidget (conversation bidirectionnelle avec admin)
+- Bouton "👤 Mon profil" → `/client/profile`
 
-**DashboardView** :
-- GET `/api/auth/my-matches` avec Bearer token
-- Si `is_active: false` → message "compte en attente d'activation"
-- Si `is_active: true` → liste de sessions, chacune avec ses `published_matches`
-- Normalisation critique `published_matches` : peut arriver comme string JSON ou array — guard `Array.isArray` + `JSON.parse` fallback
+**⚠️ PROBLÈME CONNU** : les messages côté dashboard admin ne fonctionnent pas (frontend non connecté)
 
-**Suspense** : `useSearchParams()` exige un `<Suspense>` wrapper — la page exporte un composant default wrappé.
+### `/client/profile` — Profil athlète (`frontend/app/client/profile/page.tsx`)
+
+- 4 sections : 🏊 Profil Sportif, 📅 Projet, 🎓 Académique, 📝 Notes Personnelles
+- GET `/api/profile` au chargement + PUT `/api/profile` à la sauvegarde
+- Feedback toast "✓ Profil mis à jour"
 
 ### `/admin` — CRM admin (`frontend/app/admin/page.tsx`)
 
-**States** :
-1. Auth → login form, POST `/api/admin/auth`
-2. Tableau de sessions → GET `/api/admin/sessions`
-3. Vue utilisateurs → GET `/api/admin/users`
-4. Détail session → modal/panel avec rematch, publish, notes
+**Fonctionnalités** :
+- Auth → login form, POST `/api/admin/auth`
+- Vue sessions (tableau avec statut, label, email, top match)
+- Vue utilisateurs (activation, plan, liaison session)
+- Badge unread messages par user (cercle rouge avec count)
+- Lien "📊 ANALYTICS" → `/admin/stats`
 
-**Fonctions admin** :
-- Filtrer sessions par status (nouveau, en cours, accompagné)
-- Éditer label/status/notes d'une session (PATCH)
-- Relancer le matching (POST rematch)
-- Publier des matchs pour un athlète (POST publish) → passe `published_matches` en JSONB
-- Activer/désactiver un compte utilisateur, changer le plan
-- Lier manuellement un session_token à un user
+**⚠️ PROBLÈME CONNU** : les messages depuis la page admin ne fonctionnent pas (voir admin/[id] ci-dessous)
 
-### `/admin/[id]` — Détail session admin (`frontend/app/admin/[id]/page.tsx`)
-- GET `/api/admin/sessions/{id}/detail`
-- Affiche tous les champs bruts de la session
-- Permet édition notes et re-publish
+### `/admin/[id]` — Dossier athlète (`frontend/app/admin/[id]/page.tsx`)
 
-### `/school/[id]` — Fiche école (`frontend/app/school/[id]/page.tsx`)
-- GET `/api/school/{team_id}` (team_id = integer swimcloud_id)
-- Affiche : infos équipe, données académiques, roster par genre, meilleurs temps par épreuve
+**7 sections** :
+1. Header session (temps, genre, statut, actions)
+2. Notes admin (auto-save textarea)
+3. Profil athlète (lecture seule, 2-col grid)
+4. Checklist NCAA (liste plate, cases cochables par admin)
+5. Messagerie (ChatWidget en mode admin) — **⚠️ PROBLÈME CONNU : ne fonctionne pas**
+6. Documents (upload + liste + OUVRIR link)
+7. Matchs (draft mode, publish, top 5/10/tout)
+
+**Data fetching** : `Promise.all([checklist, profile, documents])` au chargement
+
+### `/admin/stats` — Analytics (`frontend/app/admin/stats/page.tsx`)
+
+- 4 KPI tiles : total searches, accounts, active, signés
+- Taux de conversion + d'activation (progress bars)
+- Charts CSS : divisions, pipeline, top schools
+- Graphique hebdo (8 semaines) : searches + signups
+- Répartition genre
+
+### Pages publiques
+
+| Page                      | Fichier                                    | Description                              |
+|---------------------------|--------------------------------------------|------------------------------------------|
+| `/a-propos`               | `frontend/app/a-propos/page.tsx`           | Équipe (Matteo + Mats), mission          |
+| `/comment-ca-marche`      | `frontend/app/comment-ca-marche/page.tsx`  | Guide 5 étapes + FAQ accordéon           |
+| `/le-sport-aux-usa`       | `frontend/app/le-sport-aux-usa/page.tsx`   | Divisions, temps de référence, alumni    |
+| `/school/[id]`            | `frontend/app/school/[id]/page.tsx`        | Fiche école (roster, times, données acad)|
 
 ---
 
-## 4. FLUX MÉTIER
+## 6. LOGIQUE DE SCORING
 
-### Tunnel Visiteur → Inscription → Dashboard
+### Score sportif (max 50 pts)
+- Rang 1 → 5 pts, rang 2-4 (zone relais) → 25 pts, rang 5-8 → 15 pts, rang 9-12 → 8 pts, >12 → 2 pts
+- Gap >4% plus rapide que le #1 : trop dominant → pénalité
+- Relay bonus : +5 si top 4 dans ≥2 épreuves même nage
+- Departing bonus : +5 si un partant a un temps plus lent
+- `score_sportif = min(avg_pts / 25 * 50 + bonuses, 50)`
 
-```
-1. Visiteur arrive sur /
-2. Remplit le formulaire (genre, divisions, temps)
-3. POST /api/match → reçoit { session_token, matches }
-   → session_token créé et stocké en DB (search_sessions)
-4. Voit les résultats (top 20, #1 et #2 bloqués)
-5. Clique "Créer un compte" / "Se connecter"
-   → Redirigé vers /client?session_token=XXX
-6. AuthForm POST /api/auth/register avec session_token
-   → compte créé (is_active=false), session liée au user
-   → token JWT stocké dans localStorage
-7. DashboardView → /api/auth/my-matches
-   → is_active=false : message "en attente d'activation"
-8. Admin active le compte (is_active=true, plan='match')
-9. Athlète recharge → voit ses sessions avec published_matches
-```
-
-### Flux Admin (CRM)
-
-```
-1. Admin va sur /admin, entre ADMIN_PASSWORD
-2. Reçoit token SHA256(password+heure), stocké en localStorage
-3. Parcourt les sessions (status='nouveau')
-4. Identifie l'athlète (label, email, temps)
-5. Lance rematch si besoin (POST rematch)
-6. Sélectionne les matchs à publier
-7. POST publish → published_matches JSONB enregistré, status → 'accompagné'
-8. Active le compte user (PATCH activate)
-9. L'athlète voit ses matchs dans /client
-```
-
-### Cycle de vie du session_token
-
-```
-POST /api/match
-  → session_token = secrets.token_urlsafe(16) créé
-  → INSERT search_sessions (session_token, gender, divisions, times_input, ...)
-  → retourné au frontend dans la réponse
-
-/client?session_token=XXX
-  → AuthForm lit le query param
-  → Register/Login envoie session_token dans le body
-  → Backend: UPDATE users SET session_tokens = array_append(...)
-  → Backend: UPDATE search_sessions SET user_id = ...
-
-GET /api/auth/my-matches
-  → SELECT * FROM search_sessions WHERE session_token = ANY(user.session_tokens)
-```
-
-### Logique de scoring
-
-**Score sportif (max 50 pts)** :
-- Pour chaque épreuve soumise, compare le temps de l'athlète aux temps actifs de l'équipe
-- Rang 1 (meilleur) → 15 pts ; rang 2-4 (zone relais) → 25 pts ; rang 5-8 → 15 pts ; rang 9-12 → 8 pts ; >12 → 2 pts
-- Si l'athlète est >4% plus rapide que le meilleur → 5 pts (trop dominant = peu d'intérêt)
-- Relay bonus : +5 si top 4 dans ≥2 épreuves de la même nage
-- Departing bonus : +5 si un partant a un temps plus lent que l'athlète (place à prendre)
-- Score = min(avg_pts / 25 * 50 + bonuses, 50)
-
-**Score académique (max 25 pts)** :
+### Score académique (max 25 pts)
 - Spécialité matchée → +15 pts (ou +15 si "all")
-- Retention rate >85% → +4 pts, >75% → +2 pts
-- Median earnings >70k → +4 pts, >55k → +2 pts
-- Admission rate <30% → +2 pts
+- Retention rate >85% → +4, >75% → +2
+- Median earnings >70k → +4, >55k → +2
+- Admission rate <30% → +2
 
-**Score géographique (max 15 pts)** :
-- État ou région matchés → 15 pts
-- Aucune préférence → 15 pts (bonus neutre)
+### Score géographique (max 15 pts)
+- État ou région matchés → 15 pts ; aucune préférence → 15 pts
 
-**Score total = sportif + académique + géographique** (max 90 pts)
+### Score total
+```python
+data['score_total'] = data['score_sportif'] + score_acad + score_geo   # max 90
+```
 
-**Note académique (A–F)** : calculée indépendamment pour l'affichage
-- Retention, earnings, admission_rate, grad_debt_median → points → A/B/C/D/F
-
----
-
-## 5. FEATURES EXISTANTES
-
-| Feature                                   | Fichier(s)                                   |
-|-------------------------------------------|----------------------------------------------|
-| Formulaire de recherche multi-step        | `frontend/app/page.tsx` (FormView)           |
-| Conversion temps LCM/SCM → SCY            | `backend/algo/conversion.py`, dupliqué dans `page.tsx` |
-| Matching NCAA toutes divisions            | `backend/routers/match.py`                   |
-| Matching USports (Canada, LCM)            | `backend/routers/match.py`                   |
-| Score sportif avec relay/departing bonus  | `backend/routers/match.py` (calc_sport_score)|
-| Score académique par spécialité           | `backend/routers/match.py`                   |
-| Score géographique par état/région        | `backend/routers/match.py`                   |
-| Note académique A–F                       | `backend/routers/match.py` (academic_grade)  |
-| Top 20 résultats avec team_times          | `backend/routers/match.py`                   |
-| Session_token création automatique        | `backend/routers/match.py`                   |
-| Fiche école détaillée                     | `backend/routers/match.py`, `frontend/app/school/[id]/page.tsx` |
-| Inscription/connexion athlète             | `backend/routers/auth.py`, `frontend/app/client/page.tsx` |
-| JWT custom athlète                        | `backend/routers/auth.py` (make_token/verify_token) |
-| Liaison session ↔ compte utilisateur     | `backend/routers/auth.py`                    |
-| Dashboard matches publiés                 | `frontend/app/client/page.tsx` (DashboardView) |
-| CRM admin sessions                        | `backend/routers/admin.py`, `frontend/app/admin/page.tsx` |
-| Publication de matches par admin          | `backend/routers/admin.py` (/publish)        |
-| Rematch depuis admin                      | `backend/routers/admin.py` (/rematch)        |
-| Gestion utilisateurs (activation/plan)    | `backend/routers/admin.py`, `frontend/app/admin/page.tsx` |
-| Auth admin avec token horaire             | `backend/routers/admin.py`                   |
-| Health check + debug DB endpoint          | `backend/main.py`                            |
-| Migrations auto au startup                | `backend/main.py` (create_tables)            |
+### Note académique A–F (affichage seul)
+- `academic_grade()` : calcul sur retention, earnings, admission_rate, grad_debt_median
 
 ---
 
-## 6. CONVENTIONS DE CODE
+## 7. AUTHENTIFICATION
 
-### Nommage
-- Python : snake_case pour fonctions, variables, colonnes DB
-- TypeScript : camelCase pour variables/fonctions, PascalCase pour composants
-- Constantes UI : objets nommés `C` (couleurs), `BEBAS`/`MONO`/`INTER` (fonts)
-- API slugs : kebab-case (`/api/auth/my-matches`)
+### Admin
+- Token = `SHA256(ADMIN_PASSWORD + floor(unix_time/3600))` (hexa)
+- Valide pour l'heure courante ET l'heure précédente (sliding window 1h)
+- Header : `X-Admin-Token`
 
-### Patterns async
-- Backend : toutes les fonctions de route sont `async def`, chaque handler ouvre et ferme sa propre connexion asyncpg (`conn = await asyncpg.connect(...)` + `finally: await conn.close()`)
-- Pas de pool de connexions — une connexion par requête
-- Exceptions : `raise HTTPException(status_code=..., detail="...")` uniquement aux frontières d'erreur utilisateur
+### Athlète (JWT custom)
+- Token = `base64(user_id:email:floor(unix_day)).hmac_sha256[:16]`
+- Valide pour le jour courant et le jour précédent (sliding window 2j)
+- Header : `Authorization: Bearer <token>`
+- Stocké dans `localStorage["rise_user_token"]`
 
-### Auth dans les routes
-- Admin : `_: None = Depends(verify_admin)` injecté via FastAPI ou appel direct `await verify_admin(x_admin_token)`
-- Athlète : décodage manuel Bearer token en tête de chaque handler `GET /api/auth/...`
+### Hachage mot de passe
+- `SHA256("RISE_MATCH_2026" + password)` — sel statique
 
-### Frontend
-- Tout le fetch API est `async/await` avec `try/catch`, erreurs affichées via state `error: string`
-- `localStorage` pour persister token (`rise_user_token`) et token admin (`rise_admin_token`)
-- Pas de lib de state management (Redux, Zustand) — useState local uniquement
-- Pas de React Query / SWR — fetch manuel dans `useEffect`
-- Composants = fonctions dans le même fichier que la page (pas de fichiers séparés de composants)
+---
 
-### Gestion des données JSONB asyncpg
-- `published_matches` en JSONB peut être retourné comme string selon la version asyncpg
-- Pattern défensif systématique :
-  ```python
-  if isinstance(pm, str):
-      try: d["published_matches"] = json.loads(pm)
-      except: d["published_matches"] = None
-  ```
+## 8. FLUX MÉTIER
+
+### Visiteur → Inscription → Dashboard
+```
+1. Visiteur remplit formulaire → POST /api/match → session_token créé
+2. Voit top 20 résultats (#1 et #2 bloqués)
+3. Clique "Créer un compte" → /client?session_token=XXX
+4. Register → compte créé (is_active=false), session liée
+5. Dashboard : "en attente d'activation"
+6. Admin active le compte (is_active=true, plan='match')
+7. Athlète voit ses sessions + published_matches
+```
+
+### Workflow Admin complet
+```
+1. Admin /admin → liste sessions
+2. Ouvre /admin/[id] → voit profil, checklist, documents, messages, matchs
+3. Coche les étapes checklist au fil de l'accompagnement
+4. Échange messages avec l'athlète
+5. Upload / reçoit des documents (CV, bulletins, vidéos)
+6. Sélectionne matchs → POST publish
+7. Active le compte → athlète voit ses résultats
+```
+
+---
+
+## 9. PROBLÈMES CONNUS / BUGS ACTIFS
+
+| Problème | Fichier concerné | Priorité |
+|----------|-----------------|----------|
+| Messagerie admin/[id] ne fonctionne pas (ChatWidget non connecté ou erreur fetch) | `frontend/app/admin/[id]/page.tsx` | 🔴 Haute |
+| Documents côté athlète ne se chargent pas en production (Cloudinary config ?) | `frontend/app/client/page.tsx`, `backend/routers/documents.py` | 🔴 Haute |
+| Checklist athlète affiche "validées par l'équipe RISE" mais admin ne peut pas cocher | Corrigé : admin/[id] a la checklist, mais à vérifier que le user_id est bien passé | 🟡 Moyenne |
+
+---
+
+## 10. FEATURES EN ATTENTE (PENDING)
+
+### Focus académique (`PENDING — SPEC LIVRÉE, NON IMPLÉMENTÉE`)
+
+**Backend (`backend/routers/match.py`)** :
+- `focus = body.get("focus", "sport")` après `specialite`
+- Poids selon focus : `academic` → (w_sp=0.4, w_ac=1.6, w_g=1.0) ; `balanced` → (0.7, 1.3, 1.0) ; `sport` → (1.0, 1.0, 1.0)
+- Nouvelle fonction `academic_rank_score(ac_raw) -> int` (0–100, 5 critères)
+- Nouvelle fonction `academic_rank_label(score: int) -> str` (Excellent/Très bon/Bon/Correct/Basique)
+- `score_total = min(100, int(sp*w_sp + acad*w_ac + geo*w_g))`
+- Ajouter `data['academic_rank']` et `data['academic_rank_label']` à chaque résultat
+- Sort : si focus=="academic" → sort par `(academic_rank, score_total)` desc ; sinon par `score_total`
+
+**Frontend (`frontend/app/page.tsx`)** :
+- `focus` state : `useState<'sport' | 'balanced' | 'academic'>('sport')`
+- Toggle 3 boutons dans le formulaire avancé (entre divisions et spécialité)
+- Ajouter `focus` dans le body du POST `/api/match`
+- Badge academic_rank sur les match cards (conditionnel si `focus === 'academic'`)
+- `minAcademicRank` state + filtre + UI (Tous / 40+ / 55+ / 70+ / 85+)
+- Interface `MatchResult` : ajouter `academic_rank?: number; academic_rank_label?: string`
+
+### Générateur d'email coach (SPEC LIVRÉE, NON IMPLÉMENTÉE)
+- Backend : endpoint POST `/api/generate-email` avec Anthropic SDK (`claude-opus-4-5`)
+- Frontend : modal sur les match cards avec generate/copy/redo flow
+- Dépend de la var env `ANTHROPIC_API_KEY`
+
+---
+
+## 11. CONVENTIONS DE CODE
+
+### Python (backend)
+- snake_case pour tout
+- Une connexion asyncpg par requête (`conn = await asyncpg.connect(...)` + `finally: await conn.close()`)
+- Pas de pool — une connexion par handler
+- Pattern défensif JSONB : `if isinstance(val, str): json.loads(val)`
+- Auth admin : `Depends(verify_admin)` ou `await verify_admin(x_admin_token)` selon le router
+
+### TypeScript (frontend)
+- camelCase variables/fonctions, PascalCase composants, objet `C` couleurs, BEBAS/INTER/MONO fonts
+- Fetch manuel `async/await` avec `try/catch` dans `useEffect`
+- `localStorage` : `rise_user_token` (athlète), `rise_admin_token` (admin)
+- Pas de Redux/Zustand/React Query — `useState` local uniquement
+- Composants définis dans le même fichier que la page (pas de fichiers séparés)
+- Pattern défensif JSONB côté frontend :
   ```tsx
-  let publishedMatches = Array.isArray(raw) ? raw
-    : typeof raw === "string" ? (try JSON.parse(raw)) : null
+  let pm = Array.isArray(raw) ? raw : typeof raw === "string" ? JSON.parse(raw) : null
   ```
 
 ---
 
-## 7. CE QUI EST HARDCODÉ
+## 12. CE QUI EST HARDCODÉ
 
-### URLs API
-- `https://rise-match-production.up.railway.app` — dans `page.tsx` ligne 8, `client/page.tsx` ligne 7
-- Dupliqué dans toutes les pages frontend — à centraliser dans un `.env.local` (`NEXT_PUBLIC_API_URL`)
-
-### Constantes métier swimming
-- `FACTEURS_LCM_TO_SCY` — 19 valeurs dans `backend/algo/conversion.py` ET dupliquées dans `frontend/app/page.tsx`
-- `FACTEUR_SCM_TO_SCY = 0.976` — idem, dupliqué
-- `USPORTS_EVENT_MAP` — mapping NCAA→LCM events dans `backend/routers/match.py`
-- Sel de hashage mot de passe : `"RISE_MATCH_2026"` dans `backend/routers/auth.py`
-
-### Limites et seuils de scoring
-- Top 20 résultats retournés par l'API (hardcodé `results[:20]`)
-- #1 et #2 bloqués visuellement (freemium gate) — seuil hardcodé dans le frontend
-- Seuils score sportif : gap -4%, rangs 1/4/8/12 → pts 5/25/15/8/2
+- URLs API : `https://rise-match-production.up.railway.app` — dupliqué dans toutes les pages
+- `FACTEURS_LCM_TO_SCY` : dupliqué dans `backend/algo/conversion.py` ET `frontend/app/page.tsx`
+- `FACTEUR_SCM_TO_SCY = 0.976` : idem
+- Sel hachage : `"RISE_MATCH_2026"` dans `backend/routers/auth.py`
+- Top 20 résultats : hardcodé `results[:20]` dans `match.py`
+- Seuils score sportif : gap 4%, rangs 1/4/8/12 → pts 5/25/15/8/2
 - Seuils score académique : retention 85%/75%, earnings 70k/55k, admission 30%
 - Seuils note A–F : 80/60/40/20 pts
-
-### CORS
-- Liste blanche origins dans `backend/main.py` : production Vercel + localhost 3000/3001
-
-### Statuts admin
-- `'nouveau'` / `'en cours'` / `'accompagné'` — hardcodés dans le frontend et le backend
-
-### Plans utilisateur
-- `'free'` / `'match'` — hardcodés, pas d'enum centralisé
-
-### Régions géographiques
-- Dict `REGIONS` dans `backend/routers/match.py` — 4 régions US avec liste d'états
+- Statuts admin : `nouveau` / `en cours` / `accompagné` — non centralisés
+- CORS origins : liste blanche dans `backend/main.py`
 
 ---
 
-## 8. PRÊT POUR
+## 13. FEATURES EXISTANTES (COMPLÈTES)
 
-### Features logiques vu l'architecture actuelle
-
-**Amélioration UX athlète**
-- Alertes email quand les matchs sont publiés (users.email disponible, manque mailer)
-- Page de profil athlète (modifier email/mdp) — les champs existent en DB
-- Historique de recherches publié même sans compte (via session_token direct en URL)
-
-**Amélioration CRM admin**
-- Tri/recherche sessions par email athlète (user_id existe, manque join dans list_sessions)
-- Export CSV des sessions
-- Statistiques agrégées (nb sessions par division, pays, etc.)
-- Webhook/notification quand un nouvel athlète s'inscrit
-
-**Amélioration matching**
-- Filtrage par spécialité académique dans l'algorithme côté backend étendu
-- Pondération personnalisée sport/académique/géo par l'athlète
-- Matching par programme académique spécifique (top_programs disponible en DB)
-- Résultats paginés ou "load more" côté frontend (API retourne 20, facile d'ajouter offset)
-
-**Multi-sport / Multi-session**
-- Un athlète peut déjà avoir plusieurs sessions (session_tokens est un array)
-- Comparaison de sessions dans le dashboard est naturelle
-
-**Monétisation**
-- Plan payant `'match'` existe déjà — intégrer Stripe pour l'activation automatique
-- Déblocage #1/#2 lié à `is_active` (logique déjà partiellement en place)
-
-**Data freshness**
-- La table `data_freshness` existe — afficher "données mises à jour le XX" dans le footer
-- Worker SwimCloud planifié (cron Railway ou script externe)
-
-**Internationalisation**
-- Toute l'UI est en français — la structure est propre pour extraire les strings vers i18n si besoin d'une version anglaise
-
-**SEO / partage**
-- Les pages `/school/[id]` sont parfaites pour du SEO (metadata dynamiques par école)
-- Open Graph pour partage de fiche école sur réseaux sociaux
+| Feature | Fichier(s) |
+|---------|-----------|
+| Formulaire matching multi-step | `frontend/app/page.tsx` |
+| Conversion temps LCM/SCM → SCY | `backend/algo/conversion.py`, `page.tsx` |
+| Matching NCAA + NAIA + NJCAA + USports | `backend/routers/match.py` |
+| Score sportif (relay + departing bonus) | `backend/routers/match.py` |
+| Score académique + géographique | `backend/routers/match.py` |
+| Note académique A–F | `backend/routers/match.py` (academic_grade) |
+| Session_token + liaison compte | `backend/routers/match.py`, `auth.py` |
+| Fiche école détaillée | `backend/routers/match.py`, `school/[id]/page.tsx` |
+| Auth athlète JWT custom | `backend/routers/auth.py` |
+| Dashboard matches publiés | `frontend/app/client/page.tsx` |
+| Profil athlète (self-edit) | `frontend/app/client/profile/page.tsx`, `backend/routers/profile.py` |
+| Checklist NCAA 15 étapes | `backend/routers/checklist.py`, `client/page.tsx`, `admin/[id]/page.tsx` |
+| Documents liés au compte (Cloudinary) | `backend/routers/documents.py`, `client/page.tsx`, `admin/[id]/page.tsx` |
+| Messagerie athlète ↔ admin | `backend/routers/messages.py`, ChatWidget dans client et admin/[id] |
+| CRM admin (sessions + users) | `backend/routers/admin.py`, `admin/page.tsx` |
+| Publication matchs par admin | `backend/routers/admin.py` (/publish) |
+| Rematch depuis admin | `backend/routers/admin.py` (/rematch) |
+| Gestion activation/plan | `backend/routers/admin.py`, `admin/page.tsx` |
+| Badge messages non lus (admin) | `frontend/app/admin/page.tsx` |
+| Stats analytics admin | `backend/routers/admin.py` (/stats), `admin/stats/page.tsx` |
+| Pages publiques (À propos, Comment ça marche, Le Sport aux USA) | `app/a-propos/`, `app/comment-ca-marche/`, `app/le-sport-aux-usa/` |
+| Health check + debug DB | `backend/main.py` |
+| Worker SwimCloud (data) | `backend/worker/` |

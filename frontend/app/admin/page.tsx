@@ -28,6 +28,10 @@ type Session = {
   admin_label: string | null
   admin_status: string
   admin_notes: string | null
+  user_id: number | null
+  user_email: string | null
+  first_name: string | null
+  last_name: string | null
 }
 
 export default function AdminPage() {
@@ -377,6 +381,18 @@ export default function AdminPage() {
                           <option key={key} value={key} style={{ background: C.navyLight, color: "#fff" }}>{c.label}</option>
                         ))}
                       </select>
+                      {s.user_id ? (
+                        <span style={{ fontSize: 11, background: "rgba(46,204,113,0.12)", color: "#2ECC71", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 10, padding: "2px 8px", fontFamily: "Inter", display: "flex", alignItems: "center", gap: 4 }}>
+                          👤 {s.user_email ?? `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() || "Compte lié"}
+                          {unreadByUser[s.user_id] > 0 && (
+                            <span style={{ background: "#E74C3C", color: "#fff", borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
+                              {unreadByUser[s.user_id]}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "rgba(138,155,176,0.5)", fontFamily: "Inter", fontStyle: "italic" }}>sans compte</span>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px", fontSize: 12, color: C.slate, marginBottom: 6 }}>
