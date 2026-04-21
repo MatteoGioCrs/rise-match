@@ -106,7 +106,6 @@ const DIVISIONS = [
   },
   {
     name: "USports (Canada)",
-    tag: "CA 🇨🇦",
     color: "#f87171",
     bg: "rgba(248,113,113,0.06)",
     border: "rgba(248,113,113,0.2)",
