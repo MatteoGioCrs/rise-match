@@ -351,7 +351,7 @@ export default function AthleteFilePage() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {(checklist.steps as any[] || []).map((step: any) => (
+            {(Array.isArray(checklist.steps) ? checklist.steps : []).map((step: any) => (
               <div
                 key={step.id}
                 onClick={() => toggleStep(step.id, step.done)}

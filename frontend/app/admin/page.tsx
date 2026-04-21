@@ -397,7 +397,7 @@ export default function AdminPage() {
 
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px", fontSize: 12, color: C.slate, marginBottom: 6 }}>
                       {s.gender && <span>{s.gender === "M" ? "♂ Homme" : "♀ Femme"}</span>}
-                      {s.divisions && s.divisions.length > 0 && (
+                      {Array.isArray(s.divisions) && s.divisions.length > 0 && (
                         <span>{s.divisions.map(d => d === "division_10" ? "USports" : d.replace("division_", "D")).join(" · ")}</span>
                       )}
                       {s.results_count !== null && <span>{s.results_count} résultat{s.results_count !== 1 ? "s" : ""}</span>}
