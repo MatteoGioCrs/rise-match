@@ -5,8 +5,21 @@ import { useRouter } from "next/navigation"
 
 const API = "https://rise-match-production.up.railway.app"
 
-const BEBAS = { fontFamily: "'Bebas Neue', sans-serif" } as const
-const C = { navy: "#0B1628", navyLight: "#152236", maize: "#FFCB05", slate: "#8A9BB0" }
+const BEBAS: React.CSSProperties = { fontFamily: "'Bebas Neue', sans-serif" }
+const INTER: React.CSSProperties = { fontFamily: "Inter, sans-serif" }
+const MONO:  React.CSSProperties = { fontFamily: "Space Mono, monospace" }
+const C = {
+  navy:       "#0B1628",
+  navyLight:  "#152236",
+  navyMid:    "#1E3A5F",
+  maize:      "#FFCB05",
+  maizeDark:  "#E6B800",
+  white:      "#FFFFFF",
+  slate:      "#8A9BB0",
+  slateLight: "#B8C8D8",
+  green:      "#2ECC71",
+  red:        "#E74C3C",
+}
 
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
   nouveau:    { label: "Nouveau",    bg: C.maize,   color: C.navy },
@@ -50,7 +63,8 @@ export default function AdminPage() {
   const [offset,          setOffset]          = useState(0)
   const [total,           setTotal]           = useState(0)
 
-  const [activeTab,      setActiveTab]      = useState<"sessions" | "comptes">("sessions")
+  const [activeTab,      setActiveTab]      = useState<"overview" | "athletes">("overview")
+  const [search,         setSearch]         = useState("")
   const [users,          setUsers]          = useState<any[]>([])
   const [activatingUser, setActivatingUser] = useState<number | null>(null)
   const [planSelect,     setPlanSelect]     = useState<Record<number, string>>({})
@@ -218,466 +232,502 @@ export default function AdminPage() {
     return acc
   }, {} as Record<string, number>)
 
-  const filtered = filter === "tous" ? sessions : sessions.filter(s => s.admin_status === filter)
+  const searchLower = search.toLowerCase()
+  const baseFiltered = filter === "tous" ? sessions : sessions.filter(s => s.admin_status === filter)
+  const filtered = searchLower
+    ? baseFiltered.filter(s =>
+        (s.admin_label ?? "").toLowerCase().includes(searchLower) ||
+        (s.user_email ?? "").toLowerCase().includes(searchLower) ||
+        (`${s.first_name ?? ""} ${s.last_name ?? ""}`).toLowerCase().includes(searchLower)
+      )
+    : baseFiltered
+
+  const pendingUsers = users.filter((u: any) => !u.is_active)
+  const activeUsers  = users.filter((u: any) => u.is_active)
+
+  const STATUS_BORDER: Record<string, string> = {
+    nouveau:    C.maize,
+    prospect:   "#60A5FA",
+    accompagné: "#34D399",
+    signé:      "#A78BFA",
+    archivé:    "rgba(100,116,139,0.35)",
+  }
+  const PIPELINE = [
+    { key: "nouveau",    label: "Nouveau",    color: C.maize    },
+    { key: "prospect",   label: "Prospect",   color: "#60A5FA"  },
+    { key: "accompagné", label: "Accompagné", color: "#34D399"  },
+    { key: "signé",      label: "Signé",      color: "#A78BFA"  },
+    { key: "archivé",    label: "Archivé",    color: "#64748B"  },
+  ]
+  const pipelineTotal = Math.max(Object.values(counts).reduce((a, b) => a + b, 0), 1)
+
+  const SIDENAV = [
+    { id: "overview"  as const, label: "Vue d'ensemble", icon: "◈", group: "PILOTAGE" },
+    { id: "athletes"  as const, label: "Athlètes",        icon: "◉", group: "PILOTAGE" },
+  ]
 
   return (
-    <div style={{ minHeight: "100vh", background: C.navy, padding: 32, fontFamily: "Inter, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: C.navy, color: C.white, ...INTER, display: "flex" }}>
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <p style={{ ...BEBAS, fontSize: 12, color: C.maize, letterSpacing: 3, margin: 0 }}>RISE.MATCH</p>
-          <h1 style={{ ...BEBAS, fontSize: 40, color: "#fff", margin: "4px 0 0" }}>ADMIN PORTAL</h1>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, color: C.slate }}>
-            {sessions.length} recherche{sessions.length !== 1 ? "s" : ""}
-          </span>
-          <a
-            href="/admin/stats"
-            style={{ color: C.slate, fontSize: 12, textDecoration: "none", ...BEBAS, letterSpacing: 1, border: "1px solid rgba(255,255,255,0.12)", padding: "6px 12px", borderRadius: 6 }}
-          >
-            📊 ANALYTICS
-          </a>
-          <button
-            onClick={() => { setOffset(0); fetchSessions(0); fetchUsers() }}
-            style={{ background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "8px 14px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontFamily: "Inter" }}
-          >
-            ↻ Rafraîchir
-          </button>
-          <button
-            onClick={handleLogout}
-            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: C.slate, padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontFamily: "Inter", fontSize: 13 }}
-          >
-            Déconnexion
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-        {([
-          { key: "sessions", label: "RECHERCHES" },
-          { key: "comptes",  label: "COMPTES ATHLÈTES" },
-        ] as const).map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => {
-              setActiveTab(tab.key)
-              if (tab.key !== "comptes") {
-                setSelectedUser(null)
-                setUserSessions([])
-              }
-            }}
-            style={{
-              padding: "8px 20px", borderRadius: 8, border: "none", cursor: "pointer",
-              ...BEBAS, fontSize: 14, letterSpacing: 1,
-              background: activeTab === tab.key ? C.maize : "rgba(255,255,255,0.05)",
-              color: activeTab === tab.key ? C.navy : C.slate,
-            }}
-          >
-            {tab.key === "comptes" && users.length > 0
-              ? `${tab.label} (${users.length})`
-              : tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Sessions tab ─────────────────────────────────────────────────── */}
-      {activeTab === "sessions" && (<>
-
-        {/* Filter pills */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
-          {(["tous", ...Object.keys(STATUS_CFG)] as string[]).map(f => {
-            const cfg    = STATUS_CFG[f]
-            const cnt    = f === "tous" ? sessions.length : (counts[f] ?? 0)
-            const active = filter === f
-            return (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                style={{
-                  padding: "6px 16px", borderRadius: 20, border: "none", cursor: "pointer",
-                  background: active ? (cfg?.bg ?? C.maize) : "rgba(255,255,255,0.07)",
-                  color: active ? (cfg?.color ?? C.navy) : C.slate,
-                  fontFamily: "Inter", fontSize: 13, fontWeight: 600,
-                }}
-              >
-                {cfg?.label ?? "Tous"}{cnt > 0 ? ` (${cnt})` : ""}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Sessions list */}
-        {loadingSessions ? (
-          <div style={{ textAlign: "center", color: C.slate, padding: 64 }}>Chargement...</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", color: C.slate, padding: 64, fontSize: 15 }}>
-            {sessions.length === 0
-              ? "Aucune recherche enregistrée pour l'instant."
-              : `Aucune recherche avec le statut "${filter}".`}
+      {/* ── Sidebar ── */}
+      <aside style={{ width: 248, flexShrink: 0, backgroundColor: "#0A1322", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
+        {/* Logo */}
+        <div style={{ padding: "24px 24px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: C.maize, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0B1628" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M3 17 L9 11 L13 14 L21 6"/><path d="M15 6 L21 6 L21 12"/>
+            </svg>
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtered.map(s => {
-              const cfg       = STATUS_CFG[s.admin_status] ?? STATUS_CFG.nouveau
-              const isEditing = s.id in editingLabel
-              const labelVal  = isEditing ? editingLabel[s.id] : (s.admin_label ?? "")
+          <div>
+            <div style={{ ...BEBAS, fontSize: 22, lineHeight: 1 }}><span style={{ color: C.maize }}>RISE</span><span style={{ color: "#fff" }}>.MATCH</span></div>
+            <div style={{ ...BEBAS, fontSize: 9, color: C.slate, marginTop: 3, letterSpacing: "0.3em" }}>ADMIN PORTAL</div>
+          </div>
+        </div>
 
-              return (
-                <div
-                  key={s.id}
-                  style={{
-                    background: C.navyLight,
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    borderLeft: `3px solid ${cfg.bg}`,
-                    borderRadius: 10,
-                    padding: "14px 18px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 16,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          value={labelVal}
-                          onChange={e => setEditingLabel(prev => ({ ...prev, [s.id]: e.target.value }))}
-                          onBlur={() => {
-                            patchSession(s.id, { admin_label: labelVal || null })
-                            setEditingLabel(prev => { const n = { ...prev }; delete n[s.id]; return n })
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === "Enter") {
-                              patchSession(s.id, { admin_label: labelVal || null })
-                              setEditingLabel(prev => { const n = { ...prev }; delete n[s.id]; return n })
-                            }
-                            if (e.key === "Escape") {
-                              setEditingLabel(prev => { const n = { ...prev }; delete n[s.id]; return n })
-                            }
-                          }}
-                          placeholder="Nom du nageur..."
-                          style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,203,5,0.5)", borderRadius: 6, padding: "3px 10px", color: "#fff", fontSize: 14, fontWeight: 600, outline: "none", minWidth: 160, fontFamily: "Inter" }}
-                        />
-                      ) : (
-                        <span
-                          onClick={() => setEditingLabel(prev => ({ ...prev, [s.id]: s.admin_label ?? "" }))}
-                          title="Cliquer pour modifier"
-                          style={{ color: s.admin_label ? "#fff" : C.slate, fontWeight: 600, fontSize: 14, cursor: "text", borderBottom: "1px dashed rgba(255,255,255,0.2)", paddingBottom: 1 }}
-                        >
-                          {s.admin_label ?? "— sans label —"}
-                        </span>
-                      )}
-                      <select
-                        value={s.admin_status}
-                        disabled={savingId === s.id}
-                        onChange={e => patchSession(s.id, { admin_status: e.target.value })}
-                        style={{ background: cfg.bg, color: cfg.color, border: "none", borderRadius: 12, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", outline: "none", fontFamily: "Inter" }}
-                      >
-                        {Object.entries(STATUS_CFG).map(([key, c]) => (
-                          <option key={key} value={key} style={{ background: C.navyLight, color: "#fff" }}>{c.label}</option>
-                        ))}
-                      </select>
-                      {s.user_id ? (
-                        <span style={{ fontSize: 11, background: "rgba(46,204,113,0.12)", color: "#2ECC71", border: "1px solid rgba(46,204,113,0.3)", borderRadius: 10, padding: "2px 8px", fontFamily: "Inter", display: "flex", alignItems: "center", gap: 4 }}>
-                          👤 {s.user_email ?? (`${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() || "Compte lié")}
-                          {unreadByUser[s.user_id] > 0 && (
-                            <span style={{ background: "#E74C3C", color: "#fff", borderRadius: "50%", width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
-                              {unreadByUser[s.user_id]}
-                            </span>
-                          )}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: 11, color: "rgba(138,155,176,0.5)", fontFamily: "Inter", fontStyle: "italic" }}>sans compte</span>
-                      )}
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: "20px 12px" }}>
+          <div style={{ ...BEBAS, fontSize: 9, color: "rgba(138,155,176,0.6)", letterSpacing: "0.3em", padding: "0 12px", marginBottom: 8 }}>PILOTAGE</div>
+          {SIDENAV.map(item => (
+            <button key={item.id} onClick={() => setActiveTab(item.id)}
+              style={{ width: "100%", background: "none", border: "none", textAlign: "left", cursor: "pointer", padding: "10px 12px", borderRadius: 8, display: "flex", alignItems: "center", gap: 10, marginBottom: 2, position: "relative", backgroundColor: activeTab === item.id ? "rgba(255,255,255,0.05)" : "transparent", borderLeft: `3px solid ${activeTab === item.id ? C.maize : "transparent"}`, color: activeTab === item.id ? C.white : C.slate, transition: "all 0.15s" }}>
+              <span style={{ fontSize: 14 }}>{item.icon}</span>
+              <span style={{ fontSize: 14, fontWeight: 500 }}>{item.label}</span>
+              {item.id === "athletes" && users.length > 0 && (
+                <span style={{ marginLeft: "auto", ...MONO, fontSize: 10, padding: "1px 6px", borderRadius: 4, backgroundColor: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.2)", color: C.maize }}>{users.length}</span>
+              )}
+            </button>
+          ))}
+          <div style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)", margin: "16px 0 12px" }} />
+          <div style={{ ...BEBAS, fontSize: 9, color: "rgba(138,155,176,0.6)", letterSpacing: "0.3em", padding: "0 12px", marginBottom: 8 }}>OUTILS</div>
+          <a href="/admin/stats" style={{ textDecoration: "none", width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, color: C.slate, fontSize: 14, transition: "color 0.15s" }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = C.white}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = C.slate}>
+            <span style={{ fontSize: 14 }}>◎</span>
+            <span style={{ fontWeight: 500 }}>Analytics</span>
+          </a>
+        </nav>
+
+        {/* Admin card */}
+        <div style={{ margin: 12, padding: 16, borderRadius: 12, background: "linear-gradient(135deg, rgba(30,58,95,0.6), rgba(21,34,54,0.4))", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div style={{ width: 38, height: 38, borderRadius: "50%", backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", display: "flex", alignItems: "center", justifyContent: "center", ...BEBAS, fontSize: 14, color: "#34D399", flexShrink: 0 }}>AD</div>
+            <div>
+              <div style={{ fontSize: 11, color: C.slate }}>Connecté en tant que</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.white }}>Admin · RISE</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.slateLight }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#34D399", flexShrink: 0 }} />
+            Session sécurisée
+          </div>
+        </div>
+
+        {/* Logout */}
+        <button onClick={handleLogout}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10, color: C.slate, fontSize: 13, borderTop: "1px solid rgba(255,255,255,0.06)", transition: "color 0.15s", width: "100%", textAlign: "left" }}
+          onMouseEnter={e => e.currentTarget.style.color = C.red}
+          onMouseLeave={e => e.currentTarget.style.color = C.slate}>
+          ✕ Déconnexion
+        </button>
+      </aside>
+
+      {/* ── Main ── */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+
+        {/* Topbar */}
+        <header style={{ height: 64, backgroundColor: "rgba(11,22,40,0.9)", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 32px", position: "sticky", top: 0, zIndex: 40, flexShrink: 0, backdropFilter: "blur(8px)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ ...BEBAS, fontSize: 13, color: C.slate, letterSpacing: "0.2em" }}>ADMIN</span>
+            <span style={{ color: "rgba(138,155,176,0.4)" }}>/</span>
+            <span style={{ ...BEBAS, fontSize: 13, color: C.white, letterSpacing: "0.2em" }}>{activeTab === "overview" ? "VUE D'ENSEMBLE" : "ATHLÈTES"}</span>
+            <span style={{ marginLeft: 8, padding: "2px 8px", borderRadius: 4, backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", ...BEBAS, fontSize: 9, color: "#F87171", letterSpacing: "0.2em" }}>RESTRICTED</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", minWidth: 240 }}>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke={C.slate} strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Recherche athlète, email…" style={{ background: "none", border: "none", outline: "none", color: C.slateLight, fontSize: 11, ...INTER, flex: 1, minWidth: 0 }} />
+              {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: C.slate, cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>✕</button>}
+            </div>
+            <button onClick={() => { setOffset(0); fetchSessions(0); fetchUsers() }}
+              style={{ padding: "7px 12px", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: C.slateLight, fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, ...INTER }}>
+              ↻ Rafraîchir
+            </button>
+          </div>
+        </header>
+
+        <main style={{ flex: 1, padding: 32, overflowX: "hidden" }}>
+
+          {/* ──────────────── VUE D'ENSEMBLE ──────────────── */}
+          {activeTab === "overview" && (<>
+
+            {/* KPI Strip */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
+              {[
+                { label: "RECHERCHES",       value: String(total || sessions.length), sub: "sessions",                 badge: null,                    icon: "⌕" },
+                { label: "ATHLÈTES ACTIFS",  value: String(activeUsers.length),       sub: `/ ${users.length} inscrits`, badge: null,                   icon: "◉" },
+                { label: "EN ATTENTE",       value: String(pendingUsers.length),       sub: "comptes",                  badge: pendingUsers.length > 0 ? "ACTION" : null, icon: "◎" },
+                { label: "AVEC RÉSULTATS",   value: String(sessions.filter(s => (s.results_count ?? 0) > 0).length), sub: "sessions publiées", badge: null, icon: "◈" },
+              ].map(kpi => (
+                <div key={kpi.label} style={{ padding: 20, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: C.maize }}>
+                      {kpi.icon}
                     </div>
-
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px", fontSize: 12, color: C.slate, marginBottom: 6 }}>
-                      {s.gender && <span>{s.gender === "M" ? "♂ Homme" : "♀ Femme"}</span>}
-                      {Array.isArray(s.divisions) && s.divisions.length > 0 && (
-                        <span>{s.divisions.map(d => d === "division_10" ? "USports" : d.replace("division_", "D")).join(" · ")}</span>
-                      )}
-                      {s.results_count !== null && <span>{s.results_count} résultat{s.results_count !== 1 ? "s" : ""}</span>}
-                      {s.top_match && <span style={{ color: C.maize }}>→ {s.top_match}</span>}
-                    </div>
-
-                    {(() => {
-                    // 1. On sécurise la lecture des temps (String -> Array)
-                    const rawTimes = s.times_input || [];
-                    const times = typeof rawTimes === 'string' 
-                      ? JSON.parse(rawTimes) 
-                      : (Array.isArray(rawTimes) ? rawTimes : []);
-
-                    // 2. Si le tableau est vide, on n'affiche rien
-                    if (times.length === 0) return null;
-
-                    // 3. S'il y a des temps, on affiche les "pilules"
-                    return (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {times.map((t: any, i: number) => (
-                          <span key={i} style={{ background: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.2)", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: C.maize, fontFamily: "monospace" }}>
-                            {t.event} {t.basin} {typeof t.time_seconds === "number" ? t.time_seconds.toFixed(2) : t.time_seconds}s
-                          </span>
-                        ))}
-                      </div>
-                    );
-                  })()}
+                    {kpi.badge && (
+                      <span style={{ ...BEBAS, fontSize: 9, letterSpacing: "0.2em", color: "#FB923C", padding: "3px 8px", borderRadius: 4, backgroundColor: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.2)" }}>{kpi.badge}</span>
+                    )}
                   </div>
+                  <div style={{ ...BEBAS, fontSize: 9, color: C.slate, letterSpacing: "0.25em", marginBottom: 4 }}>{kpi.label}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ ...BEBAS, fontSize: 34, color: C.white, lineHeight: 1 }}>{kpi.value}</span>
+                    <span style={{ ...MONO, fontSize: 11, color: C.slate }}>{kpi.sub}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                  <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                    <div style={{ fontSize: 12, color: C.slate }}>{fmt(s.created_at)}</div>
-                    <div style={{ fontSize: 10, color: "rgba(138,155,176,0.4)", fontFamily: "monospace" }}>{s.session_token?.slice(0, 8)}…</div>
-                    <button
-                      onClick={() => router.push(`/admin/${s.id}`)}
-                      style={{ background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontFamily: "Inter", whiteSpace: "nowrap" }}
-                    >
-                      Voir →
+            {/* Pipeline */}
+            <div style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(135deg, rgba(30,58,95,0.4), rgba(15,28,51,1))", padding: "20px 24px", marginBottom: 28 }}>
+              <div style={{ ...BEBAS, fontSize: 9, color: C.slate, letterSpacing: "0.3em", marginBottom: 4 }}>PIPELINE</div>
+              <div style={{ ...BEBAS, fontSize: 18, color: C.white, marginBottom: 20 }}>STATUTS RECHERCHES</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {PIPELINE.map(p => {
+                  const cnt = counts[p.key] ?? 0
+                  const pct = Math.round(cnt / pipelineTotal * 100)
+                  return (
+                    <div key={p.key}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: p.color }} />
+                          <span style={{ fontSize: 13, color: C.white }}>{p.label}</span>
+                        </div>
+                        <span style={{ ...MONO, fontSize: 12, color: C.white }}>{cnt}</span>
+                      </div>
+                      <div style={{ height: 6, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 999, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${pct}%`, backgroundColor: p.color, borderRadius: 999, transition: "width 0.4s ease" }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Sessions table */}
+            <div style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.02)", overflow: "hidden", marginBottom: 28 }}>
+              {/* Table header */}
+              <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div style={{ ...BEBAS, fontSize: 9, color: C.slate, letterSpacing: "0.3em", marginBottom: 2 }}>RECHERCHES RÉCENTES</div>
+                  <div style={{ ...BEBAS, fontSize: 20, color: C.white }}>FLUX D'ENTRÉE{loadingSessions && " · ..."}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {(["tous", ...Object.keys(STATUS_CFG)] as string[]).map(f => {
+                    const cfg = STATUS_CFG[f]
+                    const cnt = f === "tous" ? sessions.length : (counts[f] ?? 0)
+                    const active = filter === f
+                    return (
+                      <button key={f} onClick={() => setFilter(f)}
+                        style={{ padding: "5px 14px", borderRadius: 999, border: "none", cursor: "pointer", ...BEBAS, fontSize: 10, letterSpacing: "0.15em", backgroundColor: active ? (cfg?.bg ?? C.maize) : "rgba(255,255,255,0.05)", color: active ? (cfg?.color ?? C.navy) : C.slateLight, transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6 }}>
+                        {!active && cfg && <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.bg, display: "inline-block" }} />}
+                        {cfg?.label ?? "TOUS"} · {cnt}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Rows */}
+              {loadingSessions ? (
+                <div style={{ textAlign: "center", color: C.slate, padding: 48, ...BEBAS, fontSize: 14, letterSpacing: 2 }}>CHARGEMENT...</div>
+              ) : filtered.length === 0 ? (
+                <div style={{ textAlign: "center", color: C.slate, padding: 48, fontSize: 14 }}>
+                  {sessions.length === 0 ? "Aucune recherche enregistrée." : `Aucune recherche correspondant aux filtres.`}
+                </div>
+              ) : (
+                <div>
+                  {filtered.map(s => {
+                    const cfg       = STATUS_CFG[s.admin_status] ?? STATUS_CFG.nouveau
+                    const isEditing = s.id in editingLabel
+                    const labelVal  = isEditing ? editingLabel[s.id] : (s.admin_label ?? "")
+                    const borderColor = STATUS_BORDER[s.admin_status] ?? C.slate
+                    const initials  = s.admin_label
+                      ? s.admin_label.split(" ").map((w: string) => w[0] ?? "").join("").slice(0, 2).toUpperCase()
+                      : s.first_name && s.last_name
+                        ? `${s.first_name[0]}${s.last_name[0]}`.toUpperCase()
+                        : "?"
+                    const rawTimes = s.times_input || []
+                    const times = typeof rawTimes === "string" ? (() => { try { return JSON.parse(rawTimes) } catch { return [] } })() : (Array.isArray(rawTimes) ? rawTimes : [])
+
+                    return (
+                      <div key={s.id} style={{ padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.04)", borderLeft: `3px solid ${borderColor}`, display: "flex", alignItems: "center", gap: 16, transition: "background 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.025)"}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"}>
+
+                        {/* Avatar + name */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 200, flex: "0 0 200px" }}>
+                          <div style={{ width: 34, height: 34, borderRadius: "50%", backgroundColor: `${borderColor}22`, border: `1px solid ${borderColor}55`, display: "flex", alignItems: "center", justifyContent: "center", ...BEBAS, fontSize: 12, color: borderColor, flexShrink: 0 }}>
+                            {initials}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            {isEditing ? (
+                              <input autoFocus value={labelVal}
+                                onChange={e => setEditingLabel(prev => ({ ...prev, [s.id]: e.target.value }))}
+                                onBlur={() => { patchSession(s.id, { admin_label: labelVal || null }); setEditingLabel(prev => { const n = { ...prev }; delete n[s.id]; return n }) }}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") { patchSession(s.id, { admin_label: labelVal || null }); setEditingLabel(prev => { const n = { ...prev }; delete n[s.id]; return n }) }
+                                  if (e.key === "Escape") setEditingLabel(prev => { const n = { ...prev }; delete n[s.id]; return n })
+                                }}
+                                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,203,5,0.5)", borderRadius: 4, padding: "2px 8px", color: "#fff", fontSize: 13, fontWeight: 600, outline: "none", width: "100%", ...INTER }} />
+                            ) : (
+                              <span onClick={() => setEditingLabel(prev => ({ ...prev, [s.id]: s.admin_label ?? "" }))}
+                                style={{ color: s.admin_label ? C.white : C.slate, fontWeight: 600, fontSize: 13, cursor: "text", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {s.admin_label ?? "— sans label —"}
+                              </span>
+                            )}
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                              {s.user_email && <span style={{ ...MONO, fontSize: 10, color: C.slate, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.user_email}</span>}
+                              {s.user_id && unreadByUser[s.user_id] > 0 && (
+                                <span style={{ backgroundColor: C.red, color: "#fff", borderRadius: "50%", width: 14, height: 14, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{unreadByUser[s.user_id]}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status + badges */}
+                        <div style={{ flex: "0 0 120px" }}>
+                          <select value={s.admin_status} disabled={savingId === s.id}
+                            onChange={e => patchSession(s.id, { admin_status: e.target.value })}
+                            style={{ backgroundColor: cfg.bg, color: cfg.color, border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", outline: "none", ...BEBAS, letterSpacing: "0.15em" }}>
+                            {Object.entries(STATUS_CFG).map(([key, c]) => (
+                              <option key={key} value={key} style={{ background: C.navyLight, color: "#fff" }}>{c.label}</option>
+                            ))}
+                          </select>
+                          <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                            {s.user_id ? (
+                              <span style={{ fontSize: 9, backgroundColor: "rgba(46,204,113,0.1)", color: C.green, border: "1px solid rgba(46,204,113,0.2)", borderRadius: 4, padding: "1px 6px", ...BEBAS, letterSpacing: "0.1em" }}>COMPTE</span>
+                            ) : (
+                              <span style={{ fontSize: 9, backgroundColor: "rgba(255,255,255,0.05)", color: C.slate, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, padding: "1px 6px", ...BEBAS, letterSpacing: "0.1em" }}>ANONYME</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Times */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {times.slice(0, 3).map((t: any, i: number) => (
+                              <span key={i} style={{ ...MONO, fontSize: 10, padding: "2px 8px", borderRadius: 4, backgroundColor: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.18)", color: C.maize, whiteSpace: "nowrap" }}>
+                                {t.event} · {typeof t.time_seconds === "number" ? t.time_seconds.toFixed(2) : t.time_seconds}s
+                              </span>
+                            ))}
+                            {times.length > 3 && <span style={{ ...MONO, fontSize: 10, padding: "2px 8px", borderRadius: 4, backgroundColor: "rgba(255,255,255,0.05)", color: C.slate }}>+{times.length - 3}</span>}
+                            {times.length === 0 && Array.isArray(s.divisions) && s.divisions.length > 0 && (
+                              <span style={{ fontSize: 11, color: C.slate }}>{s.divisions.map((d: string) => d === "division_10" ? "USports" : d.replace("division_", "D")).join(" · ")}</span>
+                            )}
+                          </div>
+                          {s.top_match && <div style={{ fontSize: 11, color: C.maize, marginTop: 3 }}>→ {s.top_match}</div>}
+                        </div>
+
+                        {/* Results count */}
+                        <div style={{ flex: "0 0 40px", textAlign: "center" }}>
+                          <span style={{ ...MONO, fontSize: 13, color: s.results_count ? C.white : C.slate }}>{s.results_count ?? 0}</span>
+                        </div>
+
+                        {/* Date + action */}
+                        <div style={{ flex: "0 0 130px", textAlign: "right" }}>
+                          <div style={{ ...MONO, fontSize: 10, color: C.slate, marginBottom: 6 }}>{fmt(s.created_at)}</div>
+                          <button onClick={() => router.push(`/admin/${s.id}`)}
+                            style={{ background: "none", border: "none", cursor: "pointer", ...BEBAS, fontSize: 12, color: C.maize, letterSpacing: "0.15em", padding: 0 }}>
+                            VOIR →
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Pagination footer */}
+              <div style={{ padding: "14px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <span style={{ ...MONO, fontSize: 11, color: C.slate }}>
+                  {filtered.length} sur {total || sessions.length} recherches
+                </span>
+                {total > LIMIT && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button onClick={() => { const n = Math.max(0, offset - LIMIT); setOffset(n); fetchSessions(n) }}
+                      disabled={offset === 0}
+                      style={{ padding: "6px 14px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: offset === 0 ? C.slate : C.white, cursor: offset === 0 ? "not-allowed" : "pointer", ...BEBAS, fontSize: 11, letterSpacing: "0.15em" }}>
+                      ← PRÉCÉDENT
+                    </button>
+                    <span style={{ ...MONO, fontSize: 11, color: C.white }}>{Math.floor(offset / LIMIT) + 1} / {Math.ceil(total / LIMIT)}</span>
+                    <button onClick={() => { const n = offset + LIMIT; setOffset(n); fetchSessions(n) }}
+                      disabled={offset + LIMIT >= total}
+                      style={{ padding: "6px 14px", borderRadius: 6, backgroundColor: offset + LIMIT >= total ? "rgba(255,255,255,0.05)" : "rgba(255,203,5,0.1)", border: `1px solid ${offset + LIMIT >= total ? "rgba(255,255,255,0.1)" : "rgba(255,203,5,0.3)"}`, color: offset + LIMIT >= total ? C.slate : C.maize, cursor: offset + LIMIT >= total ? "not-allowed" : "pointer", ...BEBAS, fontSize: 11, letterSpacing: "0.15em" }}>
+                      SUIVANT →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Activation queue */}
+            {pendingUsers.length > 0 && (
+              <div style={{ borderRadius: 16, border: "1px solid rgba(249,115,22,0.2)", background: "linear-gradient(135deg, rgba(249,115,22,0.04), transparent)", padding: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: "rgba(249,115,22,0.15)", border: "1px solid rgba(249,115,22,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FB923C", fontSize: 16 }}>◎</div>
+                  <div>
+                    <div style={{ ...BEBAS, fontSize: 9, color: "#FB923C", letterSpacing: "0.3em" }}>ACTION REQUISE</div>
+                    <div style={{ ...BEBAS, fontSize: 18, color: C.white }}>FILE D'ACTIVATION · {pendingUsers.length} EN ATTENTE</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {pendingUsers.slice(0, 5).map((user: any) => {
+                    const uInitials = `${user.first_name?.[0] ?? ""}${user.last_name?.[0] ?? ""}`.toUpperCase() || "?"
+                    return (
+                      <div key={user.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 10, backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", display: "flex", alignItems: "center", justifyContent: "center", ...BEBAS, fontSize: 13, color: "#34D399", flexShrink: 0 }}>{uInitials}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.first_name} {user.last_name}</div>
+                          <div style={{ ...MONO, fontSize: 10, color: C.slate, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email} · inscrit le {new Date(user.created_at).toLocaleDateString("fr-FR")}</div>
+                        </div>
+                        <select value={planSelect[user.id] ?? "match"} onChange={e => setPlanSelect(prev => ({ ...prev, [user.id]: e.target.value }))}
+                          style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "6px 10px", fontSize: 10, color: C.white, cursor: "pointer", ...BEBAS, letterSpacing: "0.1em" }}>
+                          <option value="match">MATCH · 29€</option>
+                          <option value="accompagne">ACCOMPAGNÉ · 99€</option>
+                        </select>
+                        <button onClick={() => activateUser(user.id, true, planSelect[user.id] ?? "match")} disabled={activatingUser === user.id}
+                          style={{ padding: "7px 16px", borderRadius: 6, backgroundColor: C.maize, color: C.navy, border: "none", cursor: activatingUser === user.id ? "wait" : "pointer", ...BEBAS, fontSize: 12, letterSpacing: "0.15em", opacity: activatingUser === user.id ? 0.6 : 1, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
+                          {activatingUser === user.id ? "..." : "ACTIVER →"}
+                        </button>
+                        <button onClick={() => { setActiveTab("athletes"); loadUserSessions(user) }}
+                          style={{ padding: "7px 12px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: C.slateLight, cursor: "pointer", ...BEBAS, fontSize: 11, letterSpacing: "0.15em", whiteSpace: "nowrap" }}>
+                          DOSSIER →
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+          </>)}
+
+          {/* ──────────────── ATHLÈTES ──────────────── */}
+          {activeTab === "athletes" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {users.length === 0 ? (
+                <div style={{ backgroundColor: C.navyLight, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 40, textAlign: "center", color: C.slate }}>
+                  Aucun compte athlète créé pour l'instant.
+                </div>
+              ) : users.map((user: any) => (
+                <div key={user.id}
+                  style={{ background: selectedUser?.id === user.id ? "rgba(255,203,5,0.04)" : C.navyLight, border: `1px solid ${selectedUser?.id === user.id ? "rgba(255,203,5,0.35)" : user.is_active ? "rgba(46,204,113,0.2)" : "rgba(255,255,255,0.08)"}`, borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: "50%", backgroundColor: user.is_active ? "rgba(46,204,113,0.15)" : "rgba(255,255,255,0.05)", border: `1px solid ${user.is_active ? "rgba(46,204,113,0.3)" : "rgba(255,255,255,0.1)"}`, display: "flex", alignItems: "center", justifyContent: "center", ...BEBAS, fontSize: 14, color: user.is_active ? C.green : C.slate, flexShrink: 0 }}>
+                      {`${user.first_name?.[0] ?? ""}${user.last_name?.[0] ?? ""}`.toUpperCase() || "?"}
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 600, fontSize: 15, color: C.white }}>{user.first_name || ""} {user.last_name || ""}</span>
+                        {unreadByUser[user.id] > 0 && (
+                          <span style={{ backgroundColor: C.red, color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{unreadByUser[user.id]}</span>
+                        )}
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, backgroundColor: user.is_active ? "rgba(46,204,113,0.15)" : "rgba(255,255,255,0.08)", color: user.is_active ? C.green : C.slate, border: `1px solid ${user.is_active ? C.green : "rgba(255,255,255,0.1)"}`, ...BEBAS, letterSpacing: 1 }}>
+                          {user.is_active ? `ACTIF · ${(user.plan ?? "").toUpperCase()}` : "INACTIF"}
+                        </span>
+                      </div>
+                      <p style={{ color: C.slate, fontSize: 12, margin: 0, ...MONO }}>
+                        {user.email} · {new Date(user.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                        {user.sessions_count ? ` · ${user.sessions_count} recherche(s)` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {!user.is_active && (
+                      <>
+                        <select value={planSelect[user.id] ?? "match"} onChange={e => setPlanSelect(prev => ({ ...prev, [user.id]: e.target.value }))}
+                          style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: C.white, padding: "6px 10px", borderRadius: 6, fontSize: 11, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}>
+                          <option value="match">MATCH — 29€/mois</option>
+                          <option value="accompagne">ACCOMPAGNÉ — 99€/mois</option>
+                        </select>
+                        <button onClick={() => activateUser(user.id, true, planSelect[user.id] ?? "match")} disabled={activatingUser === user.id}
+                          style={{ backgroundColor: C.maize, color: C.navy, border: "none", borderRadius: 6, padding: "7px 16px", ...BEBAS, fontSize: 12, letterSpacing: 1, cursor: activatingUser === user.id ? "wait" : "pointer", opacity: activatingUser === user.id ? 0.6 : 1 }}>
+                          {activatingUser === user.id ? "..." : "ACTIVER →"}
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => { if (selectedUser?.id === user.id) { setSelectedUser(null); setUserSessions([]) } else loadUserSessions(user) }}
+                      style={{ backgroundColor: selectedUser?.id === user.id ? "rgba(255,203,5,0.15)" : "rgba(255,255,255,0.05)", border: `1px solid ${selectedUser?.id === user.id ? "rgba(255,203,5,0.4)" : "rgba(255,255,255,0.15)"}`, color: selectedUser?.id === user.id ? C.maize : C.slate, padding: "7px 16px", borderRadius: 6, ...BEBAS, fontSize: 12, letterSpacing: 1, cursor: "pointer" }}>
+                      {selectedUser?.id === user.id ? "FERMER ✕" : "DOSSIER →"}
                     </button>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
+              ))}
 
-        {total > LIMIT && (
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 16, alignItems: "center" }}>
-            <button
-              onClick={() => { const n = Math.max(0, offset - LIMIT); setOffset(n); fetchSessions(n) }}
-              disabled={offset === 0}
-              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: offset === 0 ? C.slate : C.maize, padding: "6px 16px", borderRadius: 6, cursor: offset === 0 ? "not-allowed" : "pointer", ...BEBAS, fontSize: 13, letterSpacing: 1 }}
-            >
-              ← PRÉCÉDENT
-            </button>
-            <span style={{ color: C.slate, fontSize: 13, fontFamily: "Inter, sans-serif" }}>
-              {offset + 1}–{Math.min(offset + LIMIT, total)} sur {total}
-            </span>
-            <button
-              onClick={() => { const n = offset + LIMIT; setOffset(n); fetchSessions(n) }}
-              disabled={offset + LIMIT >= total}
-              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: offset + LIMIT >= total ? C.slate : C.maize, padding: "6px 16px", borderRadius: 6, cursor: offset + LIMIT >= total ? "not-allowed" : "pointer", ...BEBAS, fontSize: 13, letterSpacing: 1 }}
-            >
-              SUIVANT →
-            </button>
-          </div>
-        )}
-      </>)}
+              {/* Fiche détaillée */}
+              {selectedUser && (
+                <div style={{ marginTop: 8, background: C.navyLight, border: "1px solid rgba(255,203,5,0.2)", borderRadius: 16, padding: 28 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                    <div>
+                      <p style={{ ...BEBAS, fontSize: 10, color: C.maize, letterSpacing: 3, margin: "0 0 4px" }}>DOSSIER ATHLÈTE</p>
+                      <h2 style={{ ...BEBAS, fontSize: 26, color: C.white, margin: 0 }}>{selectedUser.first_name} {selectedUser.last_name}</h2>
+                      <p style={{ color: C.slate, fontSize: 12, margin: "4px 0 0", ...MONO }}>{selectedUser.email}</p>
+                    </div>
+                    <button onClick={() => { setSelectedUser(null); setUserSessions([]) }}
+                      style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: C.slate, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>✕ Fermer</button>
+                  </div>
 
-      {/* ── Comptes tab ──────────────────────────────────────────────────── */}
-      {activeTab === "comptes" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {users.length === 0 ? (
-            <div style={{ background: C.navyLight, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 40, textAlign: "center", color: C.slate }}>
-              Aucun compte athlète créé pour l'instant.
-            </div>
-          ) : users.map((user: any) => (
-            <div
-              key={user.id}
-              style={{
-                background: selectedUser?.id === user.id ? "rgba(255,203,5,0.04)" : C.navyLight,
-                border: `1px solid ${selectedUser?.id === user.id ? "rgba(255,203,5,0.35)" : user.is_active ? "rgba(46,204,113,0.2)" : "rgba(255,255,255,0.08)"}`,
-                borderRadius: 12,
-                padding: "16px 20px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 16,
-                flexWrap: "wrap",
-              }}
-            >
-              {/* Infos */}
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                  <span style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 15, color: "#fff" }}>
-                    {user.first_name || ""} {user.last_name || ""}
-                  </span>
-                  {unreadByUser[user.id] > 0 && (
-                    <span style={{ background: "#e74c3c", color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, fontFamily: "Inter", flexShrink: 0 }}>
-                      {unreadByUser[user.id]}
-                    </span>
-                  )}
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-                    background: user.is_active ? "rgba(46,204,113,0.15)" : "rgba(255,255,255,0.08)",
-                    color: user.is_active ? "#2ecc71" : C.slate,
-                    border: `1px solid ${user.is_active ? "#2ecc71" : "rgba(255,255,255,0.1)"}`,
-                    ...BEBAS, letterSpacing: 1,
-                  }}>
-                    {user.is_active ? `ACTIF · ${(user.plan ?? "").toUpperCase()}` : "INACTIF"}
-                  </span>
-                </div>
-                <p style={{ color: C.slate, fontSize: 13, margin: 0, fontFamily: "monospace" }}>
-                  {user.email}
-                  {" · "}
-                  {new Date(user.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-                  {user.sessions_count ? ` · ${user.sessions_count} recherche(s)` : ""}
-                </p>
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {!user.is_active && (
-                  <>
-                    <select
-                      value={planSelect[user.id] ?? "match"}
-                      onChange={e => setPlanSelect(prev => ({ ...prev, [user.id]: e.target.value }))}
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", padding: "6px 10px", borderRadius: 6, fontSize: 12, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}
-                    >
+                  <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap", alignItems: "center" }}>
+                    <button onClick={async () => { await activateUser(selectedUser.id, !selectedUser.is_active, selectedUser.plan ?? "match"); setSelectedUser({ ...selectedUser, is_active: !selectedUser.is_active }) }}
+                      style={{ padding: "7px 16px", borderRadius: 6, border: "none", cursor: "pointer", ...BEBAS, fontSize: 12, letterSpacing: 1, backgroundColor: selectedUser.is_active ? "rgba(231,76,60,0.15)" : "rgba(46,204,113,0.15)", color: selectedUser.is_active ? C.red : C.green }}>
+                      {selectedUser.is_active ? "DÉSACTIVER L'ACCÈS" : "ACTIVER L'ACCÈS"}
+                    </button>
+                    <select value={selectedUser.plan || "free"}
+                      onChange={async e => { const token = localStorage.getItem("rise_admin_token") ?? ""; await fetch(`${API}/api/admin/users/${selectedUser.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-token": token }, body: JSON.stringify({ plan: e.target.value }) }); setSelectedUser({ ...selectedUser, plan: e.target.value }); await fetchUsers() }}
+                      style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: C.white, padding: "7px 12px", borderRadius: 6, fontSize: 11, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}>
+                      <option value="free">FREE</option>
                       <option value="match">MATCH — 29€/mois</option>
                       <option value="accompagne">ACCOMPAGNÉ — 99€/mois</option>
                     </select>
-                    <button
-                      onClick={() => activateUser(user.id, true, planSelect[user.id] ?? "match")}
-                      disabled={activatingUser === user.id}
-                      style={{ background: C.maize, color: C.navy, border: "none", borderRadius: 6, padding: "7px 16px", ...BEBAS, fontSize: 13, letterSpacing: 1, cursor: activatingUser === user.id ? "wait" : "pointer", opacity: activatingUser === user.id ? 0.6 : 1 }}
-                    >
-                      {activatingUser === user.id ? "..." : "ACTIVER →"}
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => {
-                    if (selectedUser?.id === user.id) { setSelectedUser(null); setUserSessions([]) }
-                    else loadUserSessions(user)
-                  }}
-                  style={{ background: selectedUser?.id === user.id ? "rgba(255,203,5,0.15)" : "rgba(255,255,255,0.05)", border: `1px solid ${selectedUser?.id === user.id ? "rgba(255,203,5,0.4)" : "rgba(255,255,255,0.15)"}`, color: selectedUser?.id === user.id ? C.maize : C.slate, padding: "7px 16px", borderRadius: 6, ...BEBAS, fontSize: 13, letterSpacing: 1, cursor: "pointer" }}
-                >
-                  {selectedUser?.id === user.id ? "FERMER ✕" : "DOSSIER →"}
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {/* ── Fiche détaillée ─────────────────────────────────────────── */}
-          {selectedUser && (
-            <div style={{ marginTop: 12, background: C.navyLight, border: "1px solid rgba(255,203,5,0.2)", borderRadius: 16, padding: 28 }}>
-
-              {/* Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-                <div>
-                  <p style={{ ...BEBAS, fontSize: 11, color: C.maize, letterSpacing: 3, margin: "0 0 4px" }}>DOSSIER ATHLÈTE</p>
-                  <h2 style={{ ...BEBAS, fontSize: 28, color: "#fff", margin: 0 }}>
-                    {selectedUser.first_name} {selectedUser.last_name}
-                  </h2>
-                  <p style={{ color: C.slate, fontSize: 13, margin: "4px 0 0", fontFamily: "Space Mono, monospace" }}>
-                    {selectedUser.email}
-                  </p>
-                </div>
-                <button
-                  onClick={() => { setSelectedUser(null); setUserSessions([]) }}
-                  style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: C.slate, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 12 }}
-                >
-                  ✕ Fermer
-                </button>
-              </div>
-
-              {/* Contrôles */}
-              <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap", alignItems: "center" }}>
-
-                {/* Toggle actif/inactif */}
-                <button
-                  onClick={async () => {
-                    await activateUser(selectedUser.id, !selectedUser.is_active, selectedUser.plan ?? "match")
-                    setSelectedUser({ ...selectedUser, is_active: !selectedUser.is_active })
-                  }}
-                  style={{ padding: "7px 16px", borderRadius: 6, border: "none", cursor: "pointer", ...BEBAS, fontSize: 13, letterSpacing: 1, background: selectedUser.is_active ? "rgba(231,76,60,0.15)" : "rgba(46,204,113,0.15)", color: selectedUser.is_active ? "#e74c3c" : "#2ecc71" }}
-                >
-                  {selectedUser.is_active ? "DÉSACTIVER L'ACCÈS" : "ACTIVER L'ACCÈS"}
-                </button>
-
-                {/* Changer le plan */}
-                <select
-                  value={selectedUser.plan || "free"}
-                  onChange={async e => {
-                    const token = localStorage.getItem("rise_admin_token") ?? ""
-                    await fetch(`${API}/api/admin/users/${selectedUser.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json", "x-admin-token": token },
-                      body: JSON.stringify({ plan: e.target.value }),
-                    })
-                    setSelectedUser({ ...selectedUser, plan: e.target.value })
-                    await fetchUsers()
-                  }}
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", padding: "7px 12px", borderRadius: 6, fontSize: 12, ...BEBAS, letterSpacing: 1, cursor: "pointer" }}
-                >
-                  <option value="free">FREE</option>
-                  <option value="match">MATCH — 29€/mois</option>
-                  <option value="accompagne">ACCOMPAGNÉ — 99€/mois</option>
-                </select>
-
-                {/* Lier une session manuellement */}
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input
-                    id="manualSessionInput"
-                    placeholder="Token session à lier..."
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", padding: "7px 12px", borderRadius: 6, fontSize: 12, fontFamily: "Space Mono, monospace", width: 200, outline: "none" }}
-                  />
-                  <button
-                    onClick={async () => {
-                      const input = document.getElementById("manualSessionInput") as HTMLInputElement
-                      const sessionToken = input?.value?.trim()
-                      if (!sessionToken) return
-                      const token = localStorage.getItem("rise_admin_token") ?? ""
-                      await fetch(`${API}/api/admin/users/${selectedUser.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json", "x-admin-token": token },
-                        body: JSON.stringify({ add_session_token: sessionToken }),
-                      })
-                      input.value = ""
-                      await loadUserSessions(selectedUser)
-                    }}
-                    style={{ background: "transparent", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "7px 12px", borderRadius: 6, ...BEBAS, fontSize: 12, letterSpacing: 1, cursor: "pointer" }}
-                  >
-                    + LIER SESSION
-                  </button>
-                </div>
-              </div>
-
-              {/* Sessions liées */}
-              <div>
-                <p style={{ ...BEBAS, fontSize: 12, color: C.maize, letterSpacing: 2, margin: "0 0 12px" }}>
-                  RECHERCHES LIÉES ({userSessions.length})
-                </p>
-
-                {userSessionsLoading ? (
-                  <p style={{ color: C.slate, fontSize: 13, fontFamily: "Inter, sans-serif" }}>Chargement...</p>
-                ) : userSessions.length === 0 ? (
-                  <p style={{ color: C.slate, fontSize: 13, fontFamily: "Inter, sans-serif", fontStyle: "italic" }}>
-                    Aucune recherche liée à ce compte. Utilise « Lier session » pour en associer une manuellement.
-                  </p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {userSessions.map((s: any) => (
-                      <div
-                        key={s.id}
-                        onClick={() => router.push(`/admin/${s.id}`)}
-                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "border-color 0.15s" }}
-                        onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,203,5,0.3)")}
-                        onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)")}
-                      >
-                        <div>
-                          <p style={{ color: "#fff", fontSize: 13, margin: "0 0 2px", fontFamily: "Inter, sans-serif", fontWeight: 500 }}>
-                            Session #{s.id}{s.top_match ? ` · Top match : ${s.top_match}` : ""}
-                          </p>
-                          <p style={{ color: C.slate, fontSize: 11, margin: 0, fontFamily: "Space Mono, monospace" }}>
-                            {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-                            {" · "}{s.results_count ?? 0} résultats
-                            {s.published_matches ? " · ✓ Publié" : ""}
-                          </p>
-                        </div>
-                        <span style={{ color: C.maize, fontSize: 12, ...BEBAS, letterSpacing: 1 }}>VOIR →</span>
-                      </div>
-                    ))}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input id="manualSessionInput" placeholder="Token session à lier…"
+                        style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: C.white, padding: "7px 12px", borderRadius: 6, fontSize: 11, ...MONO, width: 200, outline: "none" }} />
+                      <button onClick={async () => { const input = document.getElementById("manualSessionInput") as HTMLInputElement; const sessionToken = input?.value?.trim(); if (!sessionToken) return; const token = localStorage.getItem("rise_admin_token") ?? ""; await fetch(`${API}/api/admin/users/${selectedUser.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "x-admin-token": token }, body: JSON.stringify({ add_session_token: sessionToken }) }); input.value = ""; await loadUserSessions(selectedUser) }}
+                        style={{ background: "transparent", border: "1px solid rgba(255,203,5,0.3)", color: C.maize, padding: "7px 12px", borderRadius: 6, ...BEBAS, fontSize: 11, letterSpacing: 1, cursor: "pointer" }}>
+                        + LIER SESSION
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  <p style={{ ...BEBAS, fontSize: 11, color: C.maize, letterSpacing: 2, margin: "0 0 12px" }}>RECHERCHES LIÉES ({userSessions.length})</p>
+                  {userSessionsLoading ? (
+                    <p style={{ color: C.slate, fontSize: 13 }}>Chargement...</p>
+                  ) : userSessions.length === 0 ? (
+                    <p style={{ color: C.slate, fontSize: 13, fontStyle: "italic" }}>Aucune recherche liée. Utilise « Lier session » pour en associer une.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {userSessions.map((s: any) => (
+                        <div key={s.id} onClick={() => router.push(`/admin/${s.id}`)}
+                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "border-color 0.15s" }}
+                          onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,203,5,0.3)")}
+                          onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)")}>
+                          <div>
+                            <p style={{ color: C.white, fontSize: 13, margin: "0 0 2px", fontWeight: 500 }}>Session #{s.id}{s.top_match ? ` · Top match : ${s.top_match}` : ""}</p>
+                            <p style={{ color: C.slate, fontSize: 11, margin: 0, ...MONO }}>
+                              {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} · {s.results_count ?? 0} résultats{s.published_matches ? " · ✓ Publié" : ""}
+                            </p>
+                          </div>
+                          <span style={{ color: C.maize, fontSize: 12, ...BEBAS, letterSpacing: 1 }}>VOIR →</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
+
+        </main>
+      </div>
     </div>
   )
 }
